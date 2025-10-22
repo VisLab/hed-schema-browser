@@ -32,9 +32,6 @@ jobs:
           path: '.'
           
   deploy:
-    environment:
-      name: Deploy Pages
-      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     needs: build
     steps:
