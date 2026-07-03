@@ -1,84 +1,120 @@
-This documentation explains what goes into the HTML HED schema browser (display_hed.html). This is meant as a reference point for future maintenance.
+This documentation explains the HED schema browser and is intended as a reference for maintenance and development.
 
-# Load the HTML page locally
+# Overview
 
-For development, it would be convenient to be able to view the [display_hed.html](http://www.hedtags.org/display_hed.html) page locally.  Once you've cloned the [Github repository](https://github.com/hed-standard/hed-standard.github.io), follow the instruction on jekyll tutorial for local deployment: https://jekyllrb.com/tutorials/using-jekyll-with-bundler/. Then you should be able to access the display file using
+The HED schema browser is a standalone static web application — no build step or server-side framework is required. The entry points are:
 
-```code
-http://localhost:<port>/display_hed.html
+| File | Purpose |
+|------|---------|
+| `index.html` | Redirects to `schema-browser.html` |
+| `schema-browser.html` | Main browser page |
+| `prerelease.html` | Redirects to `schema-browser.html?prerelease=true` |
+
+All interactive logic lives in `source/schema-browser.js`. Schema XML files are fetched at runtime from the [hed-schemas](https://github.com/hed-standard/hed-schemas) GitHub repository via the GitHub API.
+
+# Local deployment
+
+**Important:** The browser must be served over HTTP, not opened directly from the filesystem as a `file://` URL. Opening `file://` blocks the GitHub API calls (CORS) and prevents the XSLT transformation from loading the stylesheet correctly.
+
+## Option 1: Python (no additional install needed)
+
+```bash
+# From the root of the repository
+python -m http.server 8000
 ```
 
-# Key Components and Files
+Then open `http://localhost:8000/schema-browser.html` in your browser.
 
-The schema browser consists of several key files:
+## Option 2: VS Code Live Server extension
 
-- `_layouts/display_hed_layout.html`: Main HTML layout of the webpage. All HTML components are specified here
-- `display_hed.html`: Jekyll header page that points to the layout specified in `display_hed_layout.html`. This is our public landing page
-- `display_hed_prerelease.html`: landing page for prerelease loading the standard_prerelease schema by default
-- `schema-browser.js`: Main JavaScript file containing all the interactive functionality
-- `hed-schema.xsl`: XSLT transformation file that converts HED XML schema to HTML
-- `hed-collapsible.css`: CSS styling for the collapsible tree structure
+1. Install the [Live Server](https://marketplace.visualstudio.com/items?itemName=ritwickdey.LiveServer) extension in VS Code.
+2. Right-click `schema-browser.html` in the Explorer and choose **Open with Live Server**.
+
+The page will open automatically at `http://127.0.0.1:5500/schema-browser.html` (port may vary).
+
+## Option 3: Node.js
+
+```bash
+npx serve .
+```
+
+Then open the URL printed in the terminal, e.g. `http://localhost:3000/schema-browser.html`.
+
+## GitHub API rate limits
+
+The browser fetches schema listings and XML files from `https://api.github.com`. Unauthenticated requests are limited to **60 per hour per IP address**. During active development this limit can be reached quickly. If the schema list fails to load or the schema content is blank, wait a few minutes and reload.
+
+# Key components and files
+
+| File | Purpose |
+|------|---------|
+| `schema-browser.html` | Main HTML page — layout, styles, and markup |
+| `source/schema-browser.js` | All interactive functionality |
+| `source/hed-schema.xsl` | XSLT that converts a HED XML schema into HTML |
+| `source/hed-collapsible.css` | CSS styling for the collapsible tree |
 
 # Structure of the HTML page
 
-The main display page ([display_hed.html](http://www.hedtags.org/display_hed.html)) contains 4 main components: the header section, buttons, collapsible schema, and the floating info board. 
+`schema-browser.html` has four main sections: header, buttons, collapsible schema tree, and the floating info board.
 
-### Header
+## Header
 
-The header section contains static content, specified under *header-section* div. 
+Static content shown at the top of the page.
 
-### Buttons
+## Buttons
 
-Buttons are specified under *button-section* div. There are two buttons: **Expand/Collapse all** and **Show another version**. Their event handlers are specified in the html head's *\<script>* and explained below:
+Two toolbar dropdowns and an expand/collapse control.
 
-* Expand/Collapse all: *showHideAll()* event handler. The main div containing the schema (div#schema) has an attribute *status* whose value is either "show" or "hide". If the button is clicked when status is "show" (a collapse all intent), find all children elements with class *collapse* and remove "show" from their list of classes. This is equivalent to hiding those elements. The opposite applies when button is clicked with "hide" status.
-* Show another version: *getSchemaVersions()* event handler. The content of the [hedxml](https://github.com/hed-standard/hed-specification/tree/master/hedxml) folder is retrieved using [Github API](https://developer.github.com/v3/repos/contents/#get-repository-content). Returned JSON result is parsed to extract only .xml files. Their names as links are then added to  div#schemaDropdown, each containing event handler *loadSchema()* with a download link of the according xml file. When user clicks on a menu item (a version), *loadSchema()* will retrieve the requested schema using the provided download link and update the schema display section accordingly.
+* **Schema** dropdown: populated on load by calling `getLibarySchemas()` against the GitHub API, then rebuilt whenever the user picks a different schema.
+* **Schema version** dropdown: populated by `buildSchemaVersionDropdown()`, which calls `getGithubSchema()` to list `.xml` files in the `hedxml` folder of the [hed-schemas](https://github.com/hed-standard/hed-schemas/tree/main/standard_schema/hedxml) repository, including deprecated versions.
+* **Expand/Collapse all**: calls `showHideAll()`. The `div#schema` element carries a `status` attribute (`"show"` or `"hide"`). Clicking the button toggles all `.collapse` child elements by adding or removing the `show` class.
 
-### Collapsible schema
+## Collapsible schema
 
-This is the focus of the page, contained within the *schema-section* div. The schema is defined by a XML file, transformed by *schema_browser/hed-schema.xsl* and styled by *schema_browser/hed-collapsible.css*. The function *loadSchema()* is the entry point for all those steps.
+The schema tree lives in `div#schema`. The function `loadSchema()` is the single entry point for all schema loading and rendering steps:
 
-#### XML schema
+1. Fetch the XML schema file from `raw.githubusercontent.com`.
+2. Apply `source/hed-schema.xsl` via the browser's built-in XSLT processor.
+3. Set the transformed HTML as the inner content of `div#schema`.
 
-The XML schema is retrieved from the [hedxml](https://github.com/hed-standard/hed-specification/tree/master/hedxml) folder using [Github API](https://developer.github.com/v3/repos/contents/#get-repository-content). By default HED latest version is used on page load.
+### XML schema
 
-#### *hed-schema.xsl*
+Retrieved from the [hedxml](https://github.com/hed-standard/hed-schemas/tree/main/standard_schema/hedxml) folder via the [GitHub API](https://developer.github.com/v3/repos/contents/#get-repository-content). The latest version is loaded by default.
 
-The Extensible Style Language (XSL) transforms XML elements to HTML element to be displayed on the browser (https://www.w3schools.com/xml/xsl_intro.asp). *hed-schema.xsl* applies [templates](https://www.w3schools.com/xml/xsl_templates.asp) onto different elements of the HED xml file to convert them into HTML elements. Each template applies to an element of the XML file that matches the pattern specified my "match" attribute. Template is called recursively using the [\<xsl:apply-templates\>](https://www.w3schools.com/xml/xsl_apply_templates.asp) tag.
+### hed-schema.xsl
 
-Each tag is a node in the HED xml file. A node may or may not have nested node. Each node is parsed as an \<a\> element, accopanied by a hidden \<div\> element which contains the attributes of the corresponding tag. If a node contains nested node, its  \<a\> element will have *data-toggle* attribute with value "collapse" and the [\<xsl:apply-templates\>](https://www.w3schools.com/xml/xsl_apply_templates.asp) tag will be called to recursively parse its children nodes. 
+The [Extensible Style Language (XSL)](https://www.w3schools.com/xml/xsl_intro.asp) stylesheet transforms HED XML elements to HTML. Each [template](https://www.w3schools.com/xml/xsl_templates.asp) matches an element type and converts it to an `<a>` element (the clickable tag label) alongside a hidden `<div>` holding the tag's attributes. Nodes with children carry `data-toggle="collapse"` and recurse via [`<xsl:apply-templates>`](https://www.w3schools.com/xml/xsl_apply_templates.asp).
 
-The result of this transformation will then be set as the inner html content of the div#schema in *display_hed.html*
+### hed-collapsible.css
 
-#### *hed-collapsible.css*
+Tree styling adapted from [entropicthoughts.com/draw-a-tree-structure-with-only-css](https://entropicthoughts.com/draw-a-tree-structure-with-only-css) and the [Bootstrap Collapse component](https://getbootstrap.com/docs/4.0/components/collapse/).
 
-The styling is inspired by https://two-wrongs.com/draw-a-tree-structure-with-only-css and adapted for [Bootstrap Collapse component](https://getbootstrap.com/docs/4.0/components/collapse/)
+## Info board
 
-### Info board
+A floating panel whose content updates as the user hovers over HED tags. `displayResult()` in the page's `<script>` block handles the dynamic loading. Pressing Enter freezes or unfreezes the panel.
 
-The static structure of the info board is specified under *info-board-section* div. Content of the info board is loaded dynamically as user hovers a HED tag. The loading logic is specified under *displayResult()* function in the document's head \<script\>.
+# Key features and functionality
 
-# Key Features and Functionality
-
-## Schema Loading and Version Management
+## Schema loading and version management
 - Supports both standard and library schemas
 - Handles prerelease versions
 - Maintains a version history with deprecated versions
 - Uses GitHub API to fetch schema versions and content
 
-## Interactive Features
+## Interactive features
 - Expandable/collapsible tree structure
-- Search functionality with autocomplete
-- Synonym lookup capability
+- Search with autocomplete
+- Synonym lookup
 - Info board with dynamic content loading
-- Keyboard shortcuts (Enter key to freeze/unfreeze info board)
+- Keyboard shortcut: Enter to freeze/unfreeze the info board
 
-## Schema Navigation
-- Jump to specific nodes
-- Navigate to specific levels
+## Schema navigation
+- Jump to a specific node by name
 - Back to top button
-- Path display for current node
+- Path display for the currently focused node
 
-# Push and check changes
+# Deployment
 
-Commit and push your changes to the Github repo and check http://www.hedtags.org/display_hed.html to make sure the changes you made are reflected correctly on the public page. You might need to wait couple minutes before the changes is reflected on the remote server.
+The repository is deployed to GitHub Pages automatically by the [Deploy workflow](../.github/workflows/deploy.yml) whenever a commit is pushed to the `main` branch. GitHub Actions uploads the entire repository root as a static-site artifact; no build step is required.
+
+After merging changes to `main`, visit `https://www.hedtags.org/hed-schema-browser/` to verify the deployment. GitHub Pages propagation typically takes up to a few minutes.
