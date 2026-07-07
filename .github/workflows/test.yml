@@ -10,10 +10,10 @@ jobs:
   link-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@f43a0e5ff2bd294095338cb9c4f9434f8a6a3525 # v4.1.1
       
       - name: Link Checker
-        uses: lycheeverse/lychee-action@v2.7.0
+        uses: lycheeverse/lychee-action@db7a0c68a4f4c07a887fab4fd5e90dbb60a59b17 # v2.10.0
         with:
           args: --verbose --no-progress --exclude 'https://github.com/hed-standard/hed-schema-browser/workflows/Deploy/badge.svg' --exclude 'http://localhost*' '**/*.html' '**/*.md'
           fail: true
@@ -24,6 +24,6 @@ jobs:
       - uses: actions/checkout@v6
       
       - name: HTML5 Validator
-        uses: Cyb3r-Jak3/html5validator-action@v7.2.0
+        uses: Cyb3r-Jak3/html5validator-action@37d5d41a940e40b35b32c95e27609d93872b0757 # v7.2.0
         with:
           root: .

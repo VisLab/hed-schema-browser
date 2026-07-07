@@ -1,6 +1,9 @@
 # AI prompts
 .github/copilot-instructions.md
 
+# Project-specific directories
+.status/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
