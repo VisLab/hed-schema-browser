@@ -7,6 +7,21 @@ var github_endpoint = "https://api.github.com/repos/hed-standard/hed-schemas/con
 var github_raw_endpoint = "https://raw.githubusercontent.com/hed-standard/hed-schemas/main";
 //Get the button
 let scrollToTopBtn = null;
+
+/**
+ * Escape HTML special characters to prevent XSS and broken rendering
+ * @param text The text to escape
+ * @returns The HTML-escaped text
+ */
+function escapeHtml(text) {
+    return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
 /**
  * Onload call. Build schema selection and schema versions dropdown
  * and load default schema accordingly to url params
@@ -553,8 +568,8 @@ function displayResult(xml, useNewFormat, isDeprecated) {
     if (useNewFormat) {
         const result = transformNewFormat(xml);
         $("#schema").html(result.schema);
-        $("#prologue").html(result.prologue.replace(/\n/g, "<br>"));
-        $("#epilogue").html(result.epilogue.replace(/\n/g, "<br>"));
+        $("#prologue").html(escapeHtml(result.prologue).replace(/\n/g, "<br>"));
+        $("#epilogue").html(escapeHtml(result.epilogue).replace(/\n/g, "<br>"));
         $("#schemaDefinitions").show();
         $("#unitClassDefinitions").html(result.unitClassDefinitions);
         $("#unitModifierDefinitions").html(result.unitModifierDefinitions);
