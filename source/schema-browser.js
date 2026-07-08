@@ -7,6 +7,21 @@ var github_endpoint = "https://api.github.com/repos/hed-standard/hed-schemas/con
 var github_raw_endpoint = "https://raw.githubusercontent.com/hed-standard/hed-schemas/main";
 //Get the button
 let scrollToTopBtn = null;
+
+/**
+ * Escape HTML special characters to prevent XSS and broken rendering
+ * @param text The text to escape
+ * @returns The HTML-escaped text
+ */
+function escapeHtml(text) {
+    return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
 /**
  * Onload call. Build schema selection and schema versions dropdown
  * and load default schema accordingly to url params
@@ -70,7 +85,7 @@ function load(schema_name) {
             if (urlParams.has('version')) {
                 version = urlParams.get('version');
                 url = getSchemaURL(url_schema_name, version);
-                loadSchema(url);
+                loadSchema(url_schema_name, url);
                 setDropdownBtnText(url_schema_name, version);
             } 
             else
@@ -307,72 +322,279 @@ function setDropdownBtnText(schema_name, version) {
         $('#dropdownSchemaVersionButton').text("Version: HED_" + schema_name + "_Latest");
     }
 }
-/**
- * Load XSL file
- * @param filename
- * @returns {Document}
- */
-function loadXSL(filename) {
-    var xhttp = new XMLHttpRequest();
-    xhttp.open("GET", filename, false);
-    xhttp.send("");
-    return xhttp.responseXML;
+// -------------------------------------------------------------------------
+// Pure-JS XML → HTML transformation
+// Replaces the deprecated XSLTProcessor / XSLT pipeline.
+// The generated HTML is structurally identical to what hed-schema.xsl and
+// hed-schema-old.xsl produced, so all downstream jQuery code is unchanged.
+// -------------------------------------------------------------------------
+
+/** Escape a string for safe insertion into HTML text or attribute values. */
+function esc(str) {
+    if (str == null) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
 }
 
 /**
- * Reload html browser with new schema
- * @param xml   XML content of new schema
- * @param useNewFormat   boolean to indicate whether the schema is in new format (>= 8.0.0-alpha.3)
+ * Replicates the XSL translate(translate(name,' ','_'),'0123456789','zowhfvsneit').
+ * Used to build CSS-safe id / href values.
  */
-function displayResult(xml, useNewFormat, isDeprecated)
-{
-    if (useNewFormat)
-        xsl = loadXSL("source/hed-schema.xsl");
-    else
-        xsl = loadXSL("source/hed-schema-old.xsl");
-  
-        // Modern browser XSLT processing
-    if (document.implementation && document.implementation.createDocument)
-    {
-        xsltProcessor = new XSLTProcessor();
-        xsltProcessor.importStylesheet(xsl);
-        resultDocument = xsltProcessor.transformToFragment(xml, document);
-    }
-    else {
-        console.error("Browser does not support XSLT processing");
-        return;
-    }
+function xslTranslate(name) {
+    const digits = {'0':'z','1':'o','2':'w','3':'h','4':'f','5':'v','6':'s','7':'n','8':'e','9':'i'};
+    return name.replace(/ /g, '_').replace(/[0-9]/g, d => digits[d] || d);
+}
 
+/** Return trimmed text of the first direct child element with the given tag. */
+function childText(el, tag) {
+    const child = el.querySelector(`:scope > ${tag}`);
+    return child ? child.textContent.trim() : '';
+}
+
+/**
+ * Render <attribute> direct children of el as hidden divs attributed to nodeName.
+ * Matches the output of the XSL <attribute> template in hed-schema.xsl.
+ */
+function renderAttrDivs(el, nodeName) {
+    let html = '';
+    for (const attr of el.querySelectorAll(':scope > attribute')) {
+        const attrName = childText(attr, 'name');
+        const values = [...attr.querySelectorAll(':scope > value')].map(v => esc(v.textContent.trim()));
+        const valStr = values.length > 0 ? values.join(', ') + ',' : 'true';
+        html += `<div class="attribute" style="display: none" name="${esc(nodeName)}">${esc(attrName)}: ${valStr}</div>`;
+    }
+    return html;
+}
+
+/**
+ * Render <property> direct children of el as hidden divs attributed to nodeName.
+ * Used for schemaAttributeDefinition elements (which carry properties, not attributes).
+ */
+function renderPropDivs(el, nodeName) {
+    let html = '';
+    for (const prop of el.querySelectorAll(':scope > property')) {
+        const propName = childText(prop, 'name');
+        const values = [...prop.querySelectorAll(':scope > value')].map(v => esc(v.textContent.trim()));
+        const valStr = values.length > 0 ? values.join(', ') + ',' : 'true';
+        html += `<div class="attribute" style="display: none" name="${esc(nodeName)}">${esc(propName)}: ${valStr}</div>`;
+    }
+    return html;
+}
+
+/**
+ * Render a <node> element and its children recursively (new format, hed-schema.xsl).
+ * Parent nodes  → <a data-toggle="collapse"> + children container div
+ * Leaf nodes    → plain <a>
+ */
+function renderSchemaNode(nodeEl, level) {
+    const name = childText(nodeEl, 'name');
+    const description = childText(nodeEl, 'description');
+    const childNodes = [...nodeEl.querySelectorAll(':scope > node')];
+
+    if (childNodes.length > 0) {
+        let html = `<a href="#x${esc(name)}" tag="${esc(name)}" description="${esc(description)}" role="button" class="list-group-item level-${level}" data-toggle="collapse" aria-expanded="true" name="schemaNode">${esc(name)}</a>`;
+        html += renderAttrDivs(nodeEl, name);
+        html += `<div class="list-group collapse multi-collapse level-${level} show" id="x${esc(name)}">`;
+        for (const child of childNodes) {
+            html += renderSchemaNode(child, level + 1);
+        }
+        html += '</div>';
+        return html;
+    } else {
+        const tagId = xslTranslate(name);
+        let html = `<a description="${esc(description)}" role="button" class="list-group-item level-${level}" tag="${esc(tagId)}" name="schemaNode">${esc(name)}</a>`;
+        html += renderAttrDivs(nodeEl, name);
+        return html;
+    }
+}
+
+/** Render the inner HTML of the main schema tree from a <schema> element. */
+function renderSchemaTree(schemaEl) {
+    let html = '';
+    for (const node of schemaEl.querySelectorAll(':scope > node')) {
+        html += renderSchemaNode(node, 1);
+    }
+    return html;
+}
+
+function renderUnitClassDefinitions(defsEl) {
+    let html = '';
+    for (const ucDef of defsEl.querySelectorAll(':scope > unitClassDefinition')) {
+        const name = childText(ucDef, 'name');
+        const description = childText(ucDef, 'description');
+        const idName = xslTranslate(name);
+        html += `<a description="${esc(description)}" href="#${esc(idName)}" role="button" class="list-group-item" data-toggle="collapse" aria-expanded="true" name="unitClassDef">${esc(name)}</a>`;
+        html += renderAttrDivs(ucDef, name);
+        html += `<div class="list-group collapse multi-collapse level-" id="${esc(idName)}">`;
+        for (const unit of ucDef.querySelectorAll(':scope > unit')) {
+            const uName = childText(unit, 'name');
+            const uDesc = childText(unit, 'description');
+            html += `<a description="${esc(uDesc)}" role="button" class="list-group-item" tag="${esc(uName)}" name="unitClassDef">${esc(uName)}</a>`;
+            html += renderAttrDivs(unit, uName);
+        }
+        html += '</div>';
+    }
+    return html;
+}
+
+function renderUnitModifierDefinitions(defsEl) {
+    let html = '';
+    for (const c of defsEl.querySelectorAll(':scope > unitModifierDefinition')) {
+        const name = childText(c, 'name');
+        const description = childText(c, 'description');
+        html += `<a description="${esc(description)}" role="button" class="list-group-item" name="unitModifierDef">${esc(name)}</a>`;
+        html += renderAttrDivs(c, name);
+    }
+    return html;
+}
+
+function renderValueClassDefinitions(defsEl) {
+    let html = '';
+    for (const c of defsEl.querySelectorAll(':scope > valueClassDefinition')) {
+        const name = childText(c, 'name');
+        const description = childText(c, 'description');
+        html += `<a description="${esc(description)}" role="button" class="list-group-item" name="valueClassDef">${esc(name)}</a>`;
+        html += renderAttrDivs(c, name);
+    }
+    return html;
+}
+
+function renderSchemaAttributeDefinitions(defsEl) {
+    let html = '';
+    for (const c of defsEl.querySelectorAll(':scope > schemaAttributeDefinition')) {
+        const name = childText(c, 'name');
+        const description = childText(c, 'description');
+        html += `<a description="${esc(description)}" role="button" class="list-group-item" name="attributeDef">${esc(name)}</a>`;
+        html += renderPropDivs(c, name);
+    }
+    return html;
+}
+
+function renderPropertyDefinitions(defsEl) {
+    let html = '';
+    for (const c of defsEl.querySelectorAll(':scope > propertyDefinition')) {
+        const name = childText(c, 'name');
+        const description = childText(c, 'description');
+        html += `<a description="${esc(description)}" role="button" class="list-group-item" name="propertyDef">${esc(name)}</a>`;
+        html += renderAttrDivs(c, name);
+    }
+    return html;
+}
+
+/**
+ * Transform a new-format HED XML document (schema >= 8.x) into section HTML strings.
+ * Replicates the output of hed-schema.xsl.
+ */
+function transformNewFormat(xmlDoc) {
+    const hed = xmlDoc.querySelector('HED');
+    const library = hed.getAttribute('library');
+    const version = hed.getAttribute('version') || '';
+    const versionStr = library ? `${library}_${version}` : version;
+
+    const get = tag => hed.querySelector(`:scope > ${tag}`);
+
+    return {
+        version: versionStr,
+        schema:                    renderSchemaTree(get('schema') || document.createElement('schema')),
+        prologue:                  (get('prologue') || {textContent: ''}).textContent,
+        epilogue:                  (get('epilogue') || {textContent: ''}).textContent,
+        unitClassDefinitions:      get('unitClassDefinitions')      ? renderUnitClassDefinitions(get('unitClassDefinitions'))           : '',
+        unitModifierDefinitions:   get('unitModifierDefinitions')   ? renderUnitModifierDefinitions(get('unitModifierDefinitions'))     : '',
+        valueClassDefinitions:     get('valueClassDefinitions')     ? renderValueClassDefinitions(get('valueClassDefinitions'))         : '',
+        schemaAttributeDefinitions:get('schemaAttributeDefinitions')? renderSchemaAttributeDefinitions(get('schemaAttributeDefinitions')): '',
+        propertyDefinitions:       get('propertyDefinitions')       ? renderPropertyDefinitions(get('propertyDefinitions'))             : '',
+    };
+}
+
+/**
+ * Render a <node> element for old-format schemas (hed-schema-old.xsl).
+ * Old-format schemas store tag attributes as XML attributes, not child elements.
+ */
+function renderSchemaNodeOld(nodeEl, level) {
+    const name = childText(nodeEl, 'name');
+    const description = nodeEl.getAttribute('description') || '';
+    const tagId = xslTranslate(name);
+    const childNodes = [...nodeEl.querySelectorAll(':scope > node')];
+
+    // Attributes are XML attributes in the old format
+    const attrParts = [];
+    for (const attr of nodeEl.attributes) {
+        attrParts.push(`${esc(attr.name)}: ${esc(attr.value)},`);
+    }
+    const attrHtml = `<div class="attribute" style="display: none">${attrParts.join(' ')}</div>`;
+
+    if (childNodes.length > 0) {
+        let html = `<a href="#${esc(tagId)}" tag="${esc(tagId)}" description="${esc(description)}" role="button" class="list-group-item level-${level}" data-toggle="collapse" aria-expanded="true" name="schemaNode">${esc(name)}</a>`;
+        html += attrHtml;
+        html += `<div class="list-group collapse multi-collapse level-${level} show" id="${esc(tagId)}">`;
+        for (const child of childNodes) {
+            html += renderSchemaNodeOld(child, level + 1);
+        }
+        html += '</div>';
+        return html;
+    } else {
+        let html = `<a description="${esc(description)}" role="button" class="list-group-item level-${level}" tag="${esc(tagId)}" name="schemaNode">${esc(name)}</a>`;
+        html += attrHtml;
+        return html;
+    }
+}
+
+/**
+ * Transform an old-format HED XML document into an HTML string.
+ * Replicates the output of hed-schema-old.xsl.
+ * The hed-version div is included inline (the old displayResult read it back from #schema).
+ */
+function transformOldFormat(xmlDoc) {
+    const hed = xmlDoc.querySelector('HED');
+    const version = hed.getAttribute('version') || '';
+
+    let html = `<div id="hed-version" style="display: none;">${esc(version)}</div>`;
+    for (const node of hed.querySelectorAll(':scope > node')) {
+        html += renderSchemaNodeOld(node, 1);
+    }
+    return { version, schema: html };
+}
+
+/**
+ * Reload html browser with new schema.
+ * @param xml          Parsed XML document of the schema
+ * @param useNewFormat true for schemas >= 8.0.0-alpha.3 (new child-element attribute format)
+ * @param isDeprecated true if this is a deprecated schema version
+ */
+function displayResult(xml, useNewFormat, isDeprecated) {
     if (useNewFormat) {
-            $("#schema").html(resultDocument.getElementById("schema").innerHTML);
-            var prologue = resultDocument.getElementById("prologue").innerHTML;
-            $("#prologue").html(prologue.replaceAll("\n", "<br>"));
-            var epilogue = resultDocument.getElementById("epilogue").innerHTML;
-            $("#epilogue").html(epilogue.replaceAll("\n", "<br>"));
-            $("#schemaDefinitions").show();
-            $("#unitClassDefinitions").html(resultDocument.getElementById("unitClassDefinitions").innerHTML);
-            $("#unitModifierDefinitions").html(resultDocument.getElementById("unitModifierDefinitions").innerHTML);
-            $("#valueClassDefinitions").html(resultDocument.getElementById("valueClassDefinitions").innerHTML);
-            $("#schemaAttributeDefinitions").html(resultDocument.getElementById("schemaAttributeDefinitions").innerHTML);
-            $("#propertyDefinitions").html(resultDocument.getElementById("propertyDefinitions").innerHTML);
-            var versionText = "HED " + resultDocument.getElementById("hed-version").innerHTML;
-            versionText = isDeprecated ? versionText + " (deprecated)" : versionText;
-            $("#hed").html(versionText);
-    }
-    else {
-        $("#schema").html(resultDocument);
-        $("#schemaDefinitions").hide();
-            var versionText = "HED " + $("#hed-version").text();
+        const result = transformNewFormat(xml);
+        $("#schema").html(result.schema);
+        $("#prologue").html(escapeHtml(result.prologue).replace(/\n/g, "<br>"));
+        $("#epilogue").html(escapeHtml(result.epilogue).replace(/\n/g, "<br>"));
+        $("#schemaDefinitions").show();
+        $("#unitClassDefinitions").html(result.unitClassDefinitions);
+        $("#unitModifierDefinitions").html(result.unitModifierDefinitions);
+        $("#valueClassDefinitions").html(result.valueClassDefinitions);
+        $("#schemaAttributeDefinitions").html(result.schemaAttributeDefinitions);
+        $("#propertyDefinitions").html(result.propertyDefinitions);
+        var versionText = "HED " + result.version;
         versionText = isDeprecated ? versionText + " (deprecated)" : versionText;
-            $("#hed").html(versionText);
+        $("#hed").html(versionText);
+    } else {
+        const result = transformOldFormat(xml);
+        $("#schema").html(result.schema);
+        $("#schemaDefinitions").hide();
+        var versionText = "HED " + result.version;
+        versionText = isDeprecated ? versionText + " (deprecated)" : versionText;
+        $("#hed").html(versionText);
     }
-    // set info board behavior
-    $("a").mouseover({format: useNewFormat},infoBoardMouseoverEvent);
 
-    // set font colors
-    $(".list-group-item:not(.inLibrary),[data-toggle='collapse']").css('color','#0072B2');
-    $(".list-group-item:not(.inLibrary,[data-toggle='collapse'])").css('color','#0072B2');
-    $(".list-group-item:not(.inLibrary,[data-toggle='collapse'])").css('font-weight','bold'); // make bold leaf node
+    // set info board behavior
+    $("a").mouseover({format: useNewFormat}, infoBoardMouseoverEvent);
+
+    // set font colors: parent nodes (with data-toggle) and leaf nodes both get blue,
+    // leaf nodes get bold; inLibrary nodes are re-colored brown by parseMergedSchema().
+    $(".list-group-item:not(.inLibrary)").css('color', '#0072B2');
+    $(".list-group-item:not(.inLibrary):not([data-toggle='collapse'])").css('font-weight', 'bold');
 }
 
 function infoBoardMouseoverEvent(event) {
