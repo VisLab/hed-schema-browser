@@ -404,8 +404,16 @@ function renderSchemaNode(nodeEl, level) {
         html += '</div>';
         return html;
     } else {
-        const tagId = xslTranslate(name);
-        let html = `<a description="${esc(description)}" role="button" class="list-group-item level-${level}" tag="${esc(tagId)}" name="schemaNode">${esc(name)}</a>`;
+        // NOTE: the "tag" attribute is only used as a lookup key for jQuery selectors
+        // (e.g. a[tag='...']) and for the autocomplete/search node list - it is never used
+        // as an actual DOM id/href, so it must NOT be run through xslTranslate(). Using the
+        // translated form here previously caused a mismatch with the untranslated "name"
+        // attribute that renderAttrDivs() stamps onto each attribute div (name="${nodeName}"),
+        // so any leaf tag containing a digit (e.g. "SubnodeE1") could never be matched back to
+        // its own attribute divs. This broke inLibrary detection (leaves stayed blue instead of
+        // brown) and search/autocomplete for such tags - most visible in the testlib schema,
+        // whose test nodes are deliberately named with digits (see GitHub issue #11).
+        let html = `<a description="${esc(description)}" role="button" class="list-group-item level-${level}" tag="${esc(name)}" name="schemaNode">${esc(name)}</a>`;
         html += renderAttrDivs(nodeEl, name);
         return html;
     }
