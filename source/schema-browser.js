@@ -304,24 +304,18 @@ function loadDefaultSchema(schema_name) {
     // get the latest version from GitHub
     githubSchema = getGithubSchema(schema_name);
     var latestVersion = null;
+    var latestUrl = null;
     for (var i = 0; i < githubSchema["version"].length; i++) {
         if (!githubSchema["isDeprecated"][i]) {
             latestVersion = githubSchema["version"][i];
+            latestUrl = githubSchema["download_link"][i];
             break;
         }
     }
 
-    // load default schema
-    if (schema_name == "standard") {
-        xml_path = github_raw_endpoint + "/standard_schema/hedxml/HEDLatest.xml";
-    }
-    else {
-        xml_path = github_raw_endpoint + "/library_schemas/" + schema_name + "/hedxml/HED_" + schema_name.toLowerCase() + "_Latest.xml";
-    }
-    
-    loadSchema(schema_name, xml_path);
-    if (latestVersion) {
-        setDropdownBtnText(schema_name, latestVersion);
+    // load default schema using the actual latest URL
+    if (latestUrl) {
+        loadSchema(schema_name, latestUrl);
     }
 }
 
