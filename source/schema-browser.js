@@ -217,15 +217,28 @@ function buildSchemaVersionDropdown(schema_name) {
 
     // get versions based on provided schema name
     githubSchema = getGithubSchema(schema_name);
+    
+    // create array of indices and sort by semantic version (descending)
+    var indices = [];
+    for (var i = 0; i < githubSchema["version"].length; i++) {
+        indices.push(i);
+    }
+    
+    // sort indices by semantic version (highest first)
+    indices.sort(function(a, b) {
+        return compareSemanticVersions(githubSchema["version"][b], githubSchema["version"][a]);
+    });
+    
     var isDeprecatedTitleAdded = false;
-    // build schema dropdown from Github repo
-    for (var i=0; i < githubSchema["version"].length; i++) {
-        if (githubSchema["isDeprecated"][i] && !isDeprecatedTitleAdded) {
+    // build schema dropdown from Github repo in sorted order
+    for (var i = 0; i < indices.length; i++) {
+        var idx = indices[i];
+        if (githubSchema["isDeprecated"][idx] && !isDeprecatedTitleAdded) {
             var html = '<a class="dropdown-header"><b>' + 'Deprecated' + '</b></a>';
             $("#schemaVersionDropdown").append(html);
             isDeprecatedTitleAdded = true;
         } 
-        var html = '<a class="dropdown-item" id="schema' + githubSchema["version"][i] + '" onclick="loadSchema(\'' + schema_name + '\', \'' + githubSchema["download_link"][i] + '\')">' + githubSchema["version"][i] + '</a>';
+        var html = '<a class="dropdown-item" id="schema' + githubSchema["version"][idx] + '" onclick="loadSchema(\'' + schema_name + '\', \'' + githubSchema["download_link"][idx] + '\')">' + githubSchema["version"][idx] + '</a>';
         $("#schemaVersionDropdown").append(html);
     }
 }
@@ -297,25 +310,89 @@ function loadSchema(schema_name, url)
  
 }
 
+/**
+ * Extract semantic version from a full version string
+ * "HED8.4.0" → "8.4.0"
+ * "HED_xxx_8.4.0" → "8.4.0"
+ */
+function extractSemanticVersion(versionStr) {
+    var match = versionStr.match(/(\d+)\.(\d+)\.(\d+)/);
+    if (match) {
+        return match[1] + '.' + match[2] + '.' + match[3];
+    }
+    return versionStr;
+}
+
+/**
+ * Compare two semantic versions (e.g., "HED8.4.0" vs "HED8.3.0" or "HED_xxx_8.4.0" vs "HED_xxx_8.3.0")
+ * Returns: positive if v1 > v2, negative if v1 < v2, 0 if equal
+ */
+function compareSemanticVersions(v1, v2) {
+    var sem1 = extractSemanticVersion(v1);
+    var sem2 = extractSemanticVersion(v2);
+    
+    var match1 = sem1.match(/(\d+)\.(\d+)\.(\d+)/);
+    var match2 = sem2.match(/(\d+)\.(\d+)\.(\d+)/);
+    
+    if (!match1 || !match2) return 0;
+    
+    var major1 = parseInt(match1[1]);
+    var minor1 = parseInt(match1[2]);
+    var patch1 = parseInt(match1[3]);
+    
+    var major2 = parseInt(match2[1]);
+    var minor2 = parseInt(match2[2]);
+    var patch2 = parseInt(match2[3]);
+    
+    if (major1 !== major2) return major1 - major2;
+    if (minor1 !== minor2) return minor1 - minor2;
+    return patch1 - patch2;
+}
+
+/**
+ * Find the highest semantic version among non-deprecated versions
+ * Returns the download URL of the latest version, or null if none found
+ */
+function findLatestVersion(versions, isDeprecated, downloadLinks) {
+    var latestIndex = -1;
+    var latestVersion = null;
+    
+    for (var i = 0; i < versions.length; i++) {
+        if (!isDeprecated[i]) {
+            if (latestIndex === -1 || compareSemanticVersions(versions[i], latestVersion) > 0) {
+                latestIndex = i;
+                latestVersion = versions[i];
+            }
+        }
+    }
+    
+    if (latestIndex === -1) {
+        return null;
+    }
+    
+    return downloadLinks[latestIndex];
+}
+
 function loadDefaultSchema(schema_name) {
     // build schema version dropdown
     buildSchemaVersionDropdown(schema_name);
 
     // get the latest version from GitHub
     githubSchema = getGithubSchema(schema_name);
-    var latestVersion = null;
-    var latestUrl = null;
-    for (var i = 0; i < githubSchema["version"].length; i++) {
-        if (!githubSchema["isDeprecated"][i]) {
-            latestVersion = githubSchema["version"][i];
-            latestUrl = githubSchema["download_link"][i];
-            break;
-        }
-    }
+    var latestUrl = findLatestVersion(githubSchema["version"], githubSchema["isDeprecated"], githubSchema["download_link"]);
 
-    // load default schema using the actual latest URL
+    // load default schema - use actual URL if found, otherwise fall back to Latest redirect
     if (latestUrl) {
         loadSchema(schema_name, latestUrl);
+    } else {
+        // fallback if GitHub API returns no data
+        if (schema_name == "standard") {
+            xml_path = github_raw_endpoint + "/standard_schema/hedxml/HEDLatest.xml";
+        }
+        else {
+            xml_path = github_raw_endpoint + "/library_schemas/" + schema_name + "/hedxml/HED_" + schema_name.toLowerCase() + "_Latest.xml";
+        }
+        loadSchema(schema_name, xml_path);
     }
 }
 
