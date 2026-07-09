@@ -301,26 +301,27 @@ function loadDefaultSchema(schema_name) {
     // build schema version dropdown
     buildSchemaVersionDropdown(schema_name);
 
-    // load default schema
-    if (schema_name == "standard") {
-        xml_path = github_raw_endpoint + "/standard_schema/hedxml/HEDLatest.xml";
+    // get the latest version from GitHub
+    githubSchema = getGithubSchema(schema_name);
+    var latestVersion = null;
+    var latestUrl = null;
+    for (var i = 0; i < githubSchema["version"].length; i++) {
+        if (!githubSchema["isDeprecated"][i]) {
+            latestVersion = githubSchema["version"][i];
+            latestUrl = githubSchema["download_link"][i];
+            break;
+        }
     }
-    else {
-        xml_path = github_raw_endpoint + "/library_schemas/" + schema_name + "/hedxml/HED_" + schema_name.toLowerCase() + "_Latest.xml";
+
+    // load default schema using the actual latest URL
+    if (latestUrl) {
+        loadSchema(schema_name, latestUrl);
     }
-    
-    loadSchema(schema_name, xml_path);
-    setDropdownBtnText(schema_name, "Latest");
 }
 
 function setDropdownBtnText(schema_name, version) {
     $('#dropdownSchemaButton').text('Schema: ' + schema_name);
-    if (schema_name == "standard") {
-        $('#dropdownSchemaVersionButton').text("Version: HED_Latest");
-    }
-    else {
-        $('#dropdownSchemaVersionButton').text("Version: HED_" + schema_name + "_Latest");
-    }
+    $('#dropdownSchemaVersionButton').text('Version: ' + version);
 }
 // -------------------------------------------------------------------------
 // Pure-JS XML → HTML transformation
