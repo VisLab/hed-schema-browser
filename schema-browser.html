@@ -119,14 +119,14 @@
                      <span class="input-group-text" id="searchTagLabel">Search term</span>
                   </div>
                   <div class="ui-widget">
-                     <input type="text" class="form-control" id="searchTags" aria-describedby="searchTagLabel">
+                     <input type="text" class="form-control" id="searchTags" aria-describedby="searchTagLabel" title="Search for HED tags">
                   </div>
                </div>
                <div class="input-group mr-2">
                   <div class="input-group-prepend">
                      <span class="input-group-text" id="toLevelLabel">Expand to level</span>
                   </div>
-                  <input type="text" class="form-control" id="toLevel" oninput="toLevel(this.value)" aria-describedby="toLevel">
+                  <input type="text" class="form-control" id="toLevel" oninput="toLevel(this.value)" aria-describedby="toLevelLabel" title="Enter the depth level to expand to">
                </div>
             </div>
          </div>
@@ -226,7 +226,7 @@
              const button = document.getElementById('prereleaseText');
              if (button) {
                  if (isPrerelease) {
-                     button.textContent = 'View standard schema';
+                     button.textContent = 'View prerelease schema';
                  } else {
                      button.textContent = 'View prerelease schema';
                  }
