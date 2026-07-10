@@ -1061,7 +1061,7 @@ function parseMergedSchema() {
 
     $("#schema").attr("inlibrarystatus","show");
     // reset button text and enable/disable based on whether this schema has any merged library content
-    $("#toggleInLibrary").text("View merged library");
+    $("#toggleInLibrary").text("Show library only");
     $("#toggleInLibrary").prop("disabled", inLibraryNodes.length === 0);
 
     // mark all tags as has inLibrary class or not
@@ -1091,14 +1091,14 @@ function showHideMergedLibrary() {
         // hide base schema, show only merged library tags
         $(".list-group-item:not(.hasInLibrary)").hide();
         $("#schema").attr("inlibrarystatus","hide");
-        $("#toggleInLibrary").text("Show merged library");
+        $("#toggleInLibrary").text("View merged schema");
         autocomplete(document.getElementById("searchTags"), inLibraryNodes, suggestedTagsDict);
     }
     else {
         // restore full schema view
         $(".list-group-item:not(.hasInLibrary)").show();
         $("#schema").attr("inlibrarystatus","show");
-        $("#toggleInLibrary").text("View merged library");
+        $("#toggleInLibrary").text("Show library only");
         autocomplete(document.getElementById("searchTags"), allSchemaNodes, suggestedTagsDict);
     }
 }
