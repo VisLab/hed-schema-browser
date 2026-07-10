@@ -1060,6 +1060,9 @@ function parseMergedSchema() {
     });
 
     $("#schema").attr("inlibrarystatus","show");
+    // reset button text and enable/disable based on whether this schema has any merged library content
+    $("#toggleInLibrary").text("View merged library");
+    $("#toggleInLibrary").prop("disabled", inLibraryNodes.length === 0);
 
     // mark all tags as has inLibrary class or not
     // for each <a> with list-group-item class
@@ -1085,21 +1088,17 @@ function parseMergedSchema() {
  */
 function showHideMergedLibrary() {
     if ($("#schema").attr("inlibrarystatus") == "show") {
-        // hide base schema
+        // hide base schema, show only merged library tags
         $(".list-group-item:not(.hasInLibrary)").hide();
         $("#schema").attr("inlibrarystatus","hide");
-        /* reinitialize autocomplete and search */
-        console.log("hide");
-        // print length of inLibraryNodes
-        console.log(inLibraryNodes.length);
+        $("#toggleInLibrary").text("Show merged library");
         autocomplete(document.getElementById("searchTags"), inLibraryNodes, suggestedTagsDict);
     }
     else {
-        // show base schema
+        // restore full schema view
         $(".list-group-item:not(.hasInLibrary)").show();
         $("#schema").attr("inlibrarystatus","show");
-        /* reinitialize autocomplete and search */
-        console.log(allSchemaNodes.length);
+        $("#toggleInLibrary").text("View merged library");
         autocomplete(document.getElementById("searchTags"), allSchemaNodes, suggestedTagsDict);
     }
 }
