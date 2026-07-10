@@ -181,7 +181,8 @@ async function getGithubSchema(schema_name) {
         if (response.ok) {
             const data = await response.json();
             data.forEach(function(item, index) {
-                if (item["name"].includes('xml')) {
+                // only include real versioned XML files; skip aliases like HEDLatest.xml
+                if (item["name"].endsWith('.xml') && /\d+\.\d+\.\d+/.test(item["name"])) {
                     var version = item["name"].replace(/\.xml$/, '');
                     var link = item["download_url"];
                     githubSchema["version"].push(version);
@@ -206,7 +207,8 @@ async function getGithubSchema(schema_name) {
         if (response.ok) {
             const data = await response.json();
             data.forEach(function(item, index) {
-                if (item["name"].includes('xml')) {
+                // only include real versioned XML files
+                if (item["name"].endsWith('.xml') && /\d+\.\d+\.\d+/.test(item["name"])) {
                     var version = item["name"].replace(/\.xml$/, '');
                     var link = item["download_url"];
                     deprecated["version"].push(version);
@@ -392,7 +394,8 @@ function findLatestVersion(versions, isDeprecated, downloadLinks) {
     var latestVersion = null;
     
     for (var i = 0; i < versions.length; i++) {
-        if (!isDeprecated[i]) {
+        // skip non-deprecated entries that lack a parseable semantic version
+        if (!isDeprecated[i] && /\d+\.\d+\.\d+/.test(versions[i])) {
             if (latestIndex === -1 || compareSemanticVersions(versions[i], latestVersion) > 0) {
                 latestIndex = i;
                 latestVersion = versions[i];
