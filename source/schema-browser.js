@@ -7,6 +7,7 @@ var github_endpoint = "https://api.github.com/repos/hed-standard/hed-schemas/con
 var github_raw_endpoint = "https://raw.githubusercontent.com/hed-standard/hed-schemas/main";
 //Get the button
 let scrollToTopBtn = null;
+var buildSchemaVersionDropdownToken = 0;
 
 /**
  * Escape HTML special characters to prevent XSS and broken rendering
@@ -159,16 +160,14 @@ function getLibarySchemas() {
 }
 
 /**
- * Get all schema versions currently hosted on
- * https://github.com/hed-standard/hed-specification/tree/master/hedxml
- * and build githubSchema global variable
- * While building, reverse order for nice display in the dropdown
- */
-/**
  * Get GitHub schema versions asynchronously
+ * Fetches from https://github.com/hed-standard/hed-schemas
+ * @param schema_name 'standard' or library schema name
+ * @returns Promise resolving to object with version, download_link, and isDeprecated arrays
  */
 async function getGithubSchema(schema_name) {
     var githubSchema = {"version": [], "download_link": [], "isDeprecated": []};
+    let xml_path;
     if (schema_name == "standard") {
         xml_path = github_endpoint + "/standard_schema/hedxml";
     }
@@ -238,8 +237,15 @@ function buildSchemaVersionDropdown(schema_name) {
     // clear existing versions
     $("#schemaVersionDropdown").empty();
 
+    // generate unique token to prevent out-of-order updates if user switches schemas quickly
+    var requestToken = ++buildSchemaVersionDropdownToken;
+
     // get versions based on provided schema name - now async
     getGithubSchema(schema_name).then(function(githubSchema) {
+        // discard stale result if user switched schemas
+        if (requestToken !== buildSchemaVersionDropdownToken) {
+            return;
+        }
         // create array of indices and sort by semantic version (descending)
         var indices = [];
         for (var i = 0; i < githubSchema["version"].length; i++) {
@@ -262,6 +268,11 @@ function buildSchemaVersionDropdown(schema_name) {
             } 
             var html = '<a class="dropdown-item" id="schema' + githubSchema["version"][idx] + '" onclick="loadSchema(\'' + schema_name + '\', \'' + githubSchema["download_link"][idx] + '\')">' + githubSchema["version"][idx] + '</a>';
             $("#schemaVersionDropdown").append(html);
+        }
+    }).catch(function(error) {
+        // only show error if this is still the current request
+        if (requestToken === buildSchemaVersionDropdownToken) {
+            console.error('Error fetching schema versions for ' + schema_name + ':', error);
         }
     });
 }
