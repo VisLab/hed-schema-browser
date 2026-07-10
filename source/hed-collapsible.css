@@ -103,3 +103,12 @@ a.list-group-item:last-of-type + div.attribute + div::after {
 .accordion-hidden {
   display: none;
 }
+
+/* Clearly visible disabled state for the Show library only button */
+#toggleInLibrary:disabled {
+  opacity: 1;
+  background-color: #d6d6d6;
+  color: #999;
+  border-color: #bbb;
+  cursor: not-allowed;
+}

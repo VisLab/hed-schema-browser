@@ -61,7 +61,7 @@ function load(schema_name) {
 
         // add schema names to schema dropdown button
         var standard_prerelease_schema_link = getPrereleaseXml(standard_schema_api_path + "/prerelease");
-        var html = '<a class="dropdown-item" id="schemaStandard" + " onclick="loadSchema(\'' + schema_name + '\', \'' + standard_prerelease_schema_link + '\')">Standard</a>';
+        var html = '<a class="dropdown-item" id="schemaStandard" + " onclick="loadSchema(\'' + schema_name + '\', \'' + standard_prerelease_schema_link + '\')">standard</a>';
         $("#schemaDropdown").append(html);
         library_schemas = getLibarySchemas();
         for (var i=0; i < library_schemas.length; i++) {
