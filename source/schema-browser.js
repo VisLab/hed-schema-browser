@@ -334,8 +334,7 @@ function loadSchema(schema_name, url)
         toLevel(2);
         getSchemaNodes();
     });
-    $('#dropdownSchemaVersionButton').text('Version: ' + schemaVersion.split('.xml')[0]);
-    $('#dropdownSchemaButton').text('Schema: ' + schema_name);
+    setDropdownBtnText(schema_name, schemaVersion.split('.xml')[0]);
     
     // set prerelease switch btn href
     if (schema_name.includes('prerelease')) {
