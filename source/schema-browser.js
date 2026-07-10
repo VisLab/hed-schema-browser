@@ -176,7 +176,7 @@ function getGithubSchema(schema_name) {
     $.ajax({dataType: "json", url: xml_path, async: false, success: function(data) {
         data.forEach(function(item,index) {
         if (item["name"].includes('xml')) {
-            var version = item["name"].split('(.*)(.xml)')[0];
+            var version = item["name"].replace(/\.xml$/, '');
             var link = item["download_url"];
             // add to global dict
             githubSchema["version"].push(version);
@@ -192,7 +192,7 @@ function getGithubSchema(schema_name) {
     $.ajax({dataType: "json", url: hedxml_url, async: false, success: function(data) {
         data.forEach(function(item,index) {
         if (item["name"].includes('xml')) {
-                var version = item["name"].split('(.*)(.xml)')[0];
+                var version = item["name"].replace(/\.xml$/, '');
                 var link = item["download_url"];
                 // add to global dict
                 deprecated["version"].push(version);
