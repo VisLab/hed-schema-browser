@@ -7,6 +7,7 @@ var github_endpoint = "https://api.github.com/repos/hed-standard/hed-schemas/con
 var github_raw_endpoint = "https://raw.githubusercontent.com/hed-standard/hed-schemas/main";
 //Get the button
 let scrollToTopBtn = null;
+var buildSchemaVersionDropdownToken = 0;
 
 /**
  * Escape HTML special characters to prevent XSS and broken rendering
@@ -159,13 +160,14 @@ function getLibarySchemas() {
 }
 
 /**
- * Get all schema versions currently hosted on
- * https://github.com/hed-standard/hed-specification/tree/master/hedxml
- * and build githubSchema global variable
- * While building, reverse order for nice display in the dropdown
+ * Get GitHub schema versions asynchronously
+ * Fetches from https://github.com/hed-standard/hed-schemas
+ * @param schema_name 'standard' or library schema name
+ * @returns Promise resolving to object with version, download_link, and isDeprecated arrays
  */
-function getGithubSchema(schema_name) {
+async function getGithubSchema(schema_name) {
     var githubSchema = {"version": [], "download_link": [], "isDeprecated": []};
+    let xml_path;
     if (schema_name == "standard") {
         xml_path = github_endpoint + "/standard_schema/hedxml";
     }
@@ -173,40 +175,60 @@ function getGithubSchema(schema_name) {
         xml_path = github_endpoint + "/library_schemas/" + schema_name + "/hedxml";
     }
 
-    $.ajax({dataType: "json", url: xml_path, async: false, success: function(data) {
-        data.forEach(function(item,index) {
-        if (item["name"].includes('xml')) {
-            var version = item["name"].replace(/\.xml$/, '');
-            var link = item["download_url"];
-            // add to global dict
-            githubSchema["version"].push(version);
-            githubSchema["download_link"].push(link);
-            githubSchema["isDeprecated"].push(false);
+    try {
+        // get non-deprecated schemas
+        const response = await fetch(xml_path);
+        if (response.ok) {
+            const data = await response.json();
+            data.forEach(function(item, index) {
+                if (item["name"].includes('xml')) {
+                    var version = item["name"].replace(/\.xml$/, '');
+                    var link = item["download_url"];
+                    githubSchema["version"].push(version);
+                    githubSchema["download_link"].push(link);
+                    githubSchema["isDeprecated"].push(false);
+                }
+            });
+        } else {
+            console.error('Failed to fetch non-deprecated schemas: HTTP ' + response.status);
         }
-        })
-    }});
+    } catch(e) {
+        console.error('Error fetching non-deprecated schemas:', e);
+    }
+    
     Object.keys(githubSchema).forEach(key => githubSchema[key].reverse());
+    
     // get deprecated schemas
     var hedxml_url = xml_path + "/deprecated";
     var deprecated = {"version": [], "download_link": [], "isDeprecated": []};
-    $.ajax({dataType: "json", url: hedxml_url, async: false, success: function(data) {
-        data.forEach(function(item,index) {
-        if (item["name"].includes('xml')) {
-                var version = item["name"].replace(/\.xml$/, '');
-                var link = item["download_url"];
-                // add to global dict
-                deprecated["version"].push(version);
-                deprecated["download_link"].push(link);
-                deprecated["isDeprecated"].push(true);
+    try {
+        const response = await fetch(hedxml_url);
+        if (response.ok) {
+            const data = await response.json();
+            data.forEach(function(item, index) {
+                if (item["name"].includes('xml')) {
+                    var version = item["name"].replace(/\.xml$/, '');
+                    var link = item["download_url"];
+                    deprecated["version"].push(version);
+                    deprecated["download_link"].push(link);
+                    deprecated["isDeprecated"].push(true);
+                }
+            });
+        } else {
+            console.error('Failed to fetch deprecated schemas: HTTP ' + response.status);
         }
-        })
-    }});
+    } catch(e) {
+        console.error('Error fetching deprecated schemas:', e);
+    }
+    
     Object.keys(deprecated).forEach(key => deprecated[key].reverse());
     Object.keys(deprecated).forEach(key => {
-    deprecated[key].forEach(elem => githubSchema[key].push(elem))
+        deprecated[key].forEach(elem => githubSchema[key].push(elem))
     });
+    
     return githubSchema;
 }
+
 
 /**
  *  Retrieve schema versions and add to version dropdown button
@@ -215,32 +237,44 @@ function buildSchemaVersionDropdown(schema_name) {
     // clear existing versions
     $("#schemaVersionDropdown").empty();
 
-    // get versions based on provided schema name
-    githubSchema = getGithubSchema(schema_name);
-    
-    // create array of indices and sort by semantic version (descending)
-    var indices = [];
-    for (var i = 0; i < githubSchema["version"].length; i++) {
-        indices.push(i);
-    }
-    
-    // sort indices by semantic version (highest first)
-    indices.sort(function(a, b) {
-        return compareSemanticVersions(githubSchema["version"][b], githubSchema["version"][a]);
-    });
-    
-    var isDeprecatedTitleAdded = false;
-    // build schema dropdown from Github repo in sorted order
-    for (var i = 0; i < indices.length; i++) {
-        var idx = indices[i];
-        if (githubSchema["isDeprecated"][idx] && !isDeprecatedTitleAdded) {
-            var html = '<a class="dropdown-header"><b>' + 'Deprecated' + '</b></a>';
+    // generate unique token to prevent out-of-order updates if user switches schemas quickly
+    var requestToken = ++buildSchemaVersionDropdownToken;
+
+    // get versions based on provided schema name - now async
+    getGithubSchema(schema_name).then(function(githubSchema) {
+        // discard stale result if user switched schemas
+        if (requestToken !== buildSchemaVersionDropdownToken) {
+            return;
+        }
+        // create array of indices and sort by semantic version (descending)
+        var indices = [];
+        for (var i = 0; i < githubSchema["version"].length; i++) {
+            indices.push(i);
+        }
+        
+        // sort indices by semantic version (highest first)
+        indices.sort(function(a, b) {
+            return compareSemanticVersions(githubSchema["version"][b], githubSchema["version"][a]);
+        });
+        
+        var isDeprecatedTitleAdded = false;
+        // build schema dropdown from Github repo in sorted order
+        for (var i = 0; i < indices.length; i++) {
+            var idx = indices[i];
+            if (githubSchema["isDeprecated"][idx] && !isDeprecatedTitleAdded) {
+                var html = '<a class="dropdown-header"><b>' + 'Deprecated' + '</b></a>';
+                $("#schemaVersionDropdown").append(html);
+                isDeprecatedTitleAdded = true;
+            } 
+            var html = '<a class="dropdown-item" id="schema' + githubSchema["version"][idx] + '" onclick="loadSchema(\'' + schema_name + '\', \'' + githubSchema["download_link"][idx] + '\')">' + githubSchema["version"][idx] + '</a>';
             $("#schemaVersionDropdown").append(html);
-            isDeprecatedTitleAdded = true;
-        } 
-        var html = '<a class="dropdown-item" id="schema' + githubSchema["version"][idx] + '" onclick="loadSchema(\'' + schema_name + '\', \'' + githubSchema["download_link"][idx] + '\')">' + githubSchema["version"][idx] + '</a>';
-        $("#schemaVersionDropdown").append(html);
-    }
+        }
+    }).catch(function(error) {
+        // only show error if this is still the current request
+        if (requestToken === buildSchemaVersionDropdownToken) {
+            console.error('Error fetching schema versions for ' + schema_name + ':', error);
+        }
+    });
 }
 
 /**
@@ -373,12 +407,12 @@ function findLatestVersion(versions, isDeprecated, downloadLinks) {
     return downloadLinks[latestIndex];
 }
 
-function loadDefaultSchema(schema_name) {
+async function loadDefaultSchema(schema_name) {
     // build schema version dropdown
     buildSchemaVersionDropdown(schema_name);
 
     // get the latest version from GitHub
-    githubSchema = getGithubSchema(schema_name);
+    githubSchema = await getGithubSchema(schema_name);
     var latestUrl = findLatestVersion(githubSchema["version"], githubSchema["isDeprecated"], githubSchema["download_link"]);
 
     // load default schema - use actual URL if found, otherwise fall back to Latest redirect
