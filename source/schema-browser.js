@@ -69,6 +69,8 @@ function load(schema_name) {
             var html = '<a class="dropdown-item" id="schemaStandard" + " onclick="loadSchema(\'' + library_schemas[i] + '\', \'' + library_schema_link + '\')">' + library_schemas[i] + '</a>';
             $("#schemaDropdown").append(html);
         }
+        // set button text immediately with the prerelease schema being loaded
+        $('#dropdownSchemaButton').text('Schema: ' + name_without_prerelease);
     }
     else {
         // add schema names to schema dropdown button
@@ -83,6 +85,8 @@ function load(schema_name) {
         var urlParams = new URLSearchParams(window.location.search);
         if (urlParams.has('schema')) {
             url_schema_name = urlParams.get('schema');
+            // set button text immediately with the schema being loaded
+            $('#dropdownSchemaButton').text('Schema: ' + url_schema_name);
             if (urlParams.has('version')) {
                 version = urlParams.get('version');
                 url = getSchemaURL(url_schema_name, version);
@@ -93,6 +97,8 @@ function load(schema_name) {
                 loadDefaultSchema(url_schema_name);
         }
         else {
+            // set button text immediately with the default schema being loaded
+            $('#dropdownSchemaButton').text('Schema: ' + schema_name);
             loadDefaultSchema(schema_name);
         }
     }
