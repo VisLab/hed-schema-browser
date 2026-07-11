@@ -221,11 +221,13 @@ async function getGithubSchema(schema_name) {
                     deprecated["isDeprecated"].push(true);
                 }
             });
-        } else {
-            console.error('Failed to fetch deprecated schemas: HTTP ' + response.status);
+        } else if (response.status !== 404) {
+            // 404 is expected for library schemas that don't have deprecated versions
+            console.warn('Could not fetch deprecated schemas: HTTP ' + response.status);
         }
     } catch(e) {
-        console.error('Error fetching deprecated schemas:', e);
+        // Silently ignore errors for deprecated folder - it may not exist
+        console.debug('Deprecated schemas not available:', e.message);
     }
     
     Object.keys(deprecated).forEach(key => deprecated[key].reverse());
@@ -286,17 +288,29 @@ function buildSchemaVersionDropdown(schema_name) {
 
 /**
  * Get the unique prerelease schema xml from prerelease dir
+ * @returns Promise<string> The download URL of the prerelease XML file
  */
-function getPrereleaseXml(prerelease_endpoint) {
-    var download_url = "";
-    $.ajax({dataType: "json", url: prerelease_endpoint, async: false, success: function(data) {
-        data.forEach(function(item,index) {
-            if (item["name"].includes('xml') && download_url === "") {
-                download_url = item["download_url"];
+async function getPrereleaseXml(prerelease_endpoint) {
+    try {
+        const response = await fetch(prerelease_endpoint);
+        if (!response.ok) {
+            console.error('Failed to fetch prerelease folder:', response.status);
+            return "";
+        }
+        const data = await response.json();
+        
+        // Find the first XML file
+        for (let item of data) {
+            if (item.name.endsWith('.xml')) {
+                return item.download_url;
             }
-        })
-    }});
-    return download_url;
+        }
+        console.warn('No XML file found in prerelease folder:', prerelease_endpoint);
+        return "";
+    } catch (e) {
+        console.error('Error fetching prerelease XML:', e);
+        return "";
+    }
 }
 
 /**
@@ -417,6 +431,28 @@ async function loadDefaultSchema(schema_name) {
     githubSchema = await getGithubSchema(schema_name);
     var latestUrl = findLatestVersion(githubSchema["version"], githubSchema["isDeprecated"], githubSchema["download_link"]);
 
+    // If no release version found, check for prerelease
+    if (!latestUrl) {
+        var prerelease_exists = await checkSchemaVersionExists(schema_name, true);
+        if (prerelease_exists) {
+            // Load prerelease version since no release exists
+            var prerelease_schema_name = schema_name + '_prerelease';
+            var standard_schema_api_path = github_endpoint + "/standard_schema";
+            var library_schema_api_path = github_endpoint + "/library_schemas";
+            
+            var prerelease_link;
+            if (schema_name == "standard") {
+                prerelease_link = await getPrereleaseXml(standard_schema_api_path + "/prerelease");
+            } else {
+                prerelease_link = await getPrereleaseXml(library_schema_api_path + "/" + schema_name + "/prerelease");
+            }
+            if (prerelease_link) {
+                loadSchema(prerelease_schema_name, prerelease_link);
+                return;
+            }
+        }
+    }
+
     // load default schema - use actual URL if found, otherwise fall back to Latest redirect
     if (latestUrl) {
         loadSchema(schema_name, latestUrl);
@@ -498,15 +534,54 @@ async function handlePrereleaseToggle() {
         window.location.href = replaceUrlParam(targetPage, 'schema', baseSchemaName);
     } else {
         var versionType = isCurrentlyPrerelease ? 'released' : 'prerelease';
-        alert('The ' + versionType + ' version of "' + baseSchemaName + '" is not available.');
+        var message = 'The ' + versionType + ' version of "' + baseSchemaName + '" is not available.';
+        showErrorMessage(message);
     }
+}
+
+/**
+ * Display a red error message tooltip near the prerelease button
+ * @param message The error message to display
+ */
+function showErrorMessage(message) {
+    console.log('Showing error message:', message);
+    
+    // Create or get error message element
+    var errorEl = $('#prerelease-error-msg');
+    if (errorEl.length === 0) {
+        errorEl = $('<div id="prerelease-error-msg"></div>');
+        errorEl.css({
+            'position': 'fixed',
+            'top': '80px',
+            'right': '20px',
+            'background-color': '#f8d7da',
+            'border': '2px solid #721c24',
+            'color': '#721c24',
+            'padding': '12px 20px',
+            'border-radius': '4px',
+            'z-index': '10000',
+            'max-width': '400px',
+            'font-weight': '500',
+            'display': 'block'
+        });
+        $('body').append(errorEl);
+    }
+    
+    errorEl.text(message).show();
+    
+    // Auto-hide after 4 seconds
+    setTimeout(function() {
+        errorEl.fadeOut(300);
+    }, 4000);
 }
 
 // Initialize prerelease button click handler
 $(document).ready(function() {
-    $('.prerelease-switch').on('click', function(e) {
+    $(document).on('click', '.prerelease-switch', function(e) {
         e.preventDefault();
+        console.log('Prerelease button clicked, currentSchemaName:', currentSchemaName);
         handlePrereleaseToggle();
+        return false;
     });
 });
 // -------------------------------------------------------------------------
