@@ -104,8 +104,9 @@ a.list-group-item:last-of-type + div.attribute + div::after {
   display: none;
 }
 
-/* Clearly visible disabled state for the Show library only button */
-#toggleInLibrary:disabled {
+/* Clearly visible disabled state for the toolbar toggle buttons */
+#toggleInLibrary:disabled,
+#prereleaseToggle:disabled {
   opacity: 1;
   background-color: #d6d6d6;
   color: #999;

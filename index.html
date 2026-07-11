@@ -5,8 +5,8 @@
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>HED Schema Browser</title>
       <script>
-         // Redirect to the unified schema browser
-         window.location.href = 'schema-browser.html';
+         // Redirect to the unified schema browser, preserving any query params
+         window.location.href = 'schema-browser.html' + window.location.search;
       </script>
    </head>
    <body>
