@@ -230,7 +230,9 @@ async function getGithubSchema(schema_name) {
 
 
 /**
- *  Retrieve schema versions and add to version dropdown button
+ *  Retrieve schema versions and add to version dropdown button.
+ *  Deprecated versions are filtered out unless the "Show deprecated schemas"
+ *  checkbox is ticked.
  */
 function buildSchemaVersionDropdown(schema_name) {
     // clear existing versions
@@ -238,6 +240,7 @@ function buildSchemaVersionDropdown(schema_name) {
 
     // generate unique token to prevent out-of-order updates if user switches schemas quickly
     var requestToken = ++buildSchemaVersionDropdownToken;
+    var showDeprecated = $("#showDeprecatedSchemas").is(':checked');
 
     // get versions based on provided schema name - now async
     getGithubSchema(schema_name).then(function(githubSchema) {
@@ -248,25 +251,33 @@ function buildSchemaVersionDropdown(schema_name) {
         // create array of indices and sort by semantic version (descending)
         var indices = [];
         for (var i = 0; i < githubSchema["version"].length; i++) {
+            if (!showDeprecated && githubSchema["isDeprecated"][i]) continue;
             indices.push(i);
         }
-        
+
         // sort indices by semantic version (highest first)
         indices.sort(function(a, b) {
             return compareSemanticVersions(githubSchema["version"][b], githubSchema["version"][a]);
         });
-        
+
         var isDeprecatedTitleAdded = false;
-        // build schema dropdown from Github repo in sorted order
+        // build schema dropdown from Github repo in sorted order.
+        // Use jQuery DOM APIs (not string concatenation) so version strings and
+        // download URLs are inserted safely.
         for (var i = 0; i < indices.length; i++) {
             var idx = indices[i];
             if (githubSchema["isDeprecated"][idx] && !isDeprecatedTitleAdded) {
-                var html = '<a class="dropdown-header"><b>' + 'Deprecated' + '</b></a>';
-                $("#schemaVersionDropdown").append(html);
+                $('<a class="dropdown-header"></a>')
+                    .append($('<b>').text('Deprecated'))
+                    .appendTo('#schemaVersionDropdown');
                 isDeprecatedTitleAdded = true;
-            } 
-            var html = '<a class="dropdown-item" id="schema' + githubSchema["version"][idx] + '" onclick="loadSchema(\'' + schema_name + '\', \'' + githubSchema["download_link"][idx] + '\')">' + githubSchema["version"][idx] + '</a>';
-            $("#schemaVersionDropdown").append(html);
+            }
+            (function (name, version, downloadLink) {
+                $('<a class="dropdown-item" href="#"></a>')
+                    .text(version)
+                    .on('click', function (e) { e.preventDefault(); loadSchema(name, downloadLink); })
+                    .appendTo('#schemaVersionDropdown');
+            })(schema_name, githubSchema["version"][idx], githubSchema["download_link"][idx]);
         }
     }).catch(function(error) {
         // only show error if this is still the current request
@@ -274,6 +285,15 @@ function buildSchemaVersionDropdown(schema_name) {
             console.error('Error fetching schema versions for ' + schema_name + ':', error);
         }
     });
+}
+
+/**
+ * Called when the "Show deprecated schemas" checkbox toggles.
+ * Rebuilds the version dropdown for whatever schema is currently loaded.
+ */
+function onShowDeprecatedSchemasChange() {
+    var baseSchemaName = currentSchemaName.replace('_prerelease', '');
+    buildSchemaVersionDropdown(baseSchemaName);
 }
 
 /**
