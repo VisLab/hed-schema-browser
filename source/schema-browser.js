@@ -337,17 +337,19 @@ function loadSchema(schema_name, url)
         return;
     }
     let schemaVersion = match[0];
-    // Decide new-format vs old-format rendering from the major semantic version.
-    // New format applies from HED 8.0.0-alpha.3 onward (see displayResult() doc);
-    // in practice, treating all 8.x+ as new format is correct because pre-alpha.3
-    // versions aren't served from the hedxml folder.
-    // Robust for both standard filenames ("HED8.4.0") and library filenames
-    // ("HED_mouse_8.4.0"), and doesn't over-match on the "alpha" substring.
-    // A filename with no numeric version (e.g. "HED_mouse_prerelease") is
-    // treated as new format — old-format schemas always carried a pre-8 numeric
-    // version in the filename.
-    let majorMatch = extractSemanticVersion(schemaVersion).match(/^(\d+)/);
-    useNewFormat = !majorMatch || parseInt(majorMatch[1], 10) >= 8 || url.includes('test');
+    // Decide new-format vs old-format rendering.
+    // - Library schema filenames are "HED_<name>_<ver>.xml" (e.g. HED_lang_1.1.0.xml).
+    //   Libraries only exist in the new-format era, so they always use new format
+    //   regardless of their (independent) version number.
+    // - Standard schema filenames are "HED<ver>.xml" (e.g. HED8.4.0.xml). New format
+    //   applies from HED 8.0.0-alpha.3 onward; treat all 8.x+ as new format.
+    // - Test URLs are always new format.
+    if (schemaVersion.startsWith('HED_') || url.includes('test')) {
+        useNewFormat = true;
+    } else {
+        let majorMatch = schemaVersion.match(/^HED(\d+)/);
+        useNewFormat = !majorMatch || parseInt(majorMatch[1], 10) >= 8;
+    }
 
     if (url.includes('deprecated')) // schema link will be */deprecated/*.xml if deprecated
         var isDeprecated = true;
