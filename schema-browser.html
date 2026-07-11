@@ -99,11 +99,11 @@
                   <div class="dropdown-menu" id="schemaVersionDropdown" aria-labelledby="dropdownSchemaVersionButton"></div>
                </div>
 
-                <button class="btn btn-light" type="button" id="toggleInLibrary" onclick="showHideMergedLibrary()">
+                <button class="btn btn-light mr-2" type="button" id="toggleInLibrary" onclick="showHideMergedLibrary()">
                     Show library only
                 </button>
 
-                <button class="btn btn-light" type="button" id="prereleaseToggle" onclick="togglePrerelease()">
+                <button class="btn btn-light mr-2" type="button" id="prereleaseToggle" onclick="handlePrereleaseToggle()">
                     <span id="prereleaseText">View prerelease schema</span>
                 </button>
 
@@ -217,42 +217,13 @@
       <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js" integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo" crossorigin="anonymous"></script>
       <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js" integrity="sha384-wfSDF2E50Y2D1uUdj0O3uMBJnjuUD4Ih7YwaYd1iqfktj0Uod8GCExl3Og8ifwB6" crossorigin="anonymous"></script>
       <script>
-         // Determine which schema to load based on URL parameter
-         const urlParams = new URLSearchParams(window.location.search);
-         const isPrerelease = urlParams.get('prerelease') === 'true' || window.location.pathname.includes('prerelease');
-         
-         // Update the button text based on current mode
-         function updatePrereleaseButton() {
-             const button = document.getElementById('prereleaseText');
-             if (button) {
-                 if (isPrerelease) {
-                     button.textContent = 'View released schema';
-                 } else {
-                     button.textContent = 'View prereleased schema';
-                 }
-             }
-         }
-         
-         // Toggle between prerelease and standard
-         function togglePrerelease() {
-             if (isPrerelease) {
-                 window.location.href = 'schema-browser.html';
-             } else {
-                 window.location.href = 'schema-browser.html?prerelease=true';
-             }
-         }
-         
-         // Update button text when DOM is ready
-         $(document).ready(function() {
-             updatePrereleaseButton();
+         // load() reads ?schema=, ?version=, and ?prerelease=true from the URL itself
+         // and updates the prerelease toggle button state after each schema loads.
+         // .catch surfaces any startup failure in the console instead of as an
+         // unhandled promise rejection.
+         load("standard").catch(function (err) {
+             console.error('Schema browser failed to initialize:', err);
          });
-         
-         // Load the appropriate schema (called immediately like original)
-         if (isPrerelease) {
-             load("standard_prerelease");
-         } else {
-             load("standard");
-         }
       </script>
    </body>
 </html>

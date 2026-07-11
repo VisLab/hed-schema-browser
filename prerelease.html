@@ -5,8 +5,13 @@
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>HED Schema Browser - Prerelease</title>
       <script>
-         // Redirect to the unified schema browser with prerelease parameter
-         window.location.href = 'schema-browser.html?prerelease=true';
+         // Redirect to the unified schema browser with prerelease parameter,
+         // preserving any additional query params (e.g. ?schema=mouse).
+         (function () {
+             var params = new URLSearchParams(window.location.search);
+             params.set('prerelease', 'true');
+             window.location.href = 'schema-browser.html?' + params.toString();
+         })();
       </script>
    </head>
    <body>

@@ -8,6 +8,7 @@ var github_raw_endpoint = "https://raw.githubusercontent.com/hed-standard/hed-sc
 //Get the button
 let scrollToTopBtn = null;
 var buildSchemaVersionDropdownToken = 0;
+var currentSchemaName = 'standard'; // Track currently loaded schema
 
 /**
  * Escape HTML special characters to prevent XSS and broken rendering
@@ -25,9 +26,17 @@ function escapeHtml(text) {
 
 /**
  * Onload call. Build schema selection and schema versions dropdown
- * and load default schema accordingly to url params
+ * and load default schema accordingly to url params.
+ *
+ * Prerelease mode is determined by either:
+ *   - the caller passing a name that contains 'prerelease' (legacy)
+ *   - the URL carrying ?prerelease=true, or ?schema=<name>_prerelease
+ *
+ * In prerelease mode, dropdown clicks call loadPrereleaseSchema(name);
+ * otherwise they call loadDefaultSchema(name) which prefers release and
+ * falls back to prerelease for prerelease-only schemas like "mouse".
  */
-function load(schema_name) {
+async function load(schema_name) {
     /* Set up scroll to top button
     * https://mdbootstrap.com/docs/standard/extended/back-to-top/
     */
@@ -45,62 +54,42 @@ function load(schema_name) {
         schema_name = urlParams.get('schema');
     }
 
-    // Get and load schema according to official or prerelease
-    standard_schema_api_path = github_endpoint + "/standard_schema";
-    library_schema_api_path = github_endpoint + "/library_schemas";
-    if (schema_name.includes('prerelease')) {
-        var name_without_prerelease = schema_name.replace('_prerelease', '');
-        if (name_without_prerelease == "standard") {
-            var schema_link = getPrereleaseXml(standard_schema_api_path + "/prerelease");
-        }
-        else {
-            var schema_link = getPrereleaseXml(library_schema_api_path + "/" + name_without_prerelease + "/prerelease");
-        }
-        // load preprelease schema accordingly
-        loadSchema(schema_name, schema_link)
+    // Determine prerelease browsing mode from URL / arg, then normalize base name
+    var isPrereleaseMode = urlParams.get('prerelease') === 'true' || schema_name.includes('prerelease');
+    var baseSchemaName = schema_name.replace('_prerelease', '');
 
-        // add schema names to schema dropdown button
-        var standard_prerelease_schema_link = getPrereleaseXml(standard_schema_api_path + "/prerelease");
-        var html = '<a class="dropdown-item" id="schemaStandard" + " onclick="loadSchema(\'' + schema_name + '\', \'' + standard_prerelease_schema_link + '\')">standard</a>';
-        $("#schemaDropdown").append(html);
-        library_schemas = getLibarySchemas();
-        for (var i=0; i < library_schemas.length; i++) {
-            var library_schema_link = getPrereleaseXml(library_schema_api_path + "/" + library_schemas[i] + "/prerelease"); 
-            var html = '<a class="dropdown-item" id="schemaStandard" + " onclick="loadSchema(\'' + library_schemas[i] + '\', \'' + library_schema_link + '\')">' + library_schemas[i] + '</a>';
-            $("#schemaDropdown").append(html);
-        }
-        // set button text immediately with the prerelease schema being loaded
-        $('#dropdownSchemaButton').text('Schema: ' + name_without_prerelease);
+    // Build the schema dropdown. Click handler matches current page mode so
+    // switching schemas from within prerelease view keeps loading prereleases.
+    // Names come from the GitHub API and are inserted via .text() / a bound
+    // click handler rather than concatenated into HTML, to avoid injection if
+    // a schema folder is ever named with quotes or angle brackets.
+    var loaderFn = isPrereleaseMode ? loadPrereleaseSchema : loadDefaultSchema;
+    var addSchemaItem = function (name) {
+        $('<a class="dropdown-item" href="#"></a>')
+            .text(name)
+            .on('click', function (e) { e.preventDefault(); loaderFn(name); })
+            .appendTo('#schemaDropdown');
+    };
+    addSchemaItem('standard');
+    var library_schemas = getLibarySchemas();
+    for (var i = 0; i < library_schemas.length; i++) {
+        addSchemaItem(library_schemas[i]);
     }
-    else {
-        // add schema names to schema dropdown button
-        var html = '<a class="dropdown-item" id="schemaStandard" + " onclick="loadDefaultSchema(\'standard\')">standard</a>';
-        $("#schemaDropdown").append(html);
-        library_schemas = getLibarySchemas();
-        for (var i=0; i < library_schemas.length; i++) {
-            var html = '<a class="dropdown-item" id="schemaStandard" + " onclick="loadDefaultSchema(\'' + library_schemas[i] + '\')">' + library_schemas[i] + '</a>';
-            $("#schemaDropdown").append(html);
-        }
-        
-        var urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.has('schema')) {
-            url_schema_name = urlParams.get('schema');
-            // set button text immediately with the schema being loaded
-            $('#dropdownSchemaButton').text('Schema: ' + url_schema_name);
-            if (urlParams.has('version')) {
-                version = urlParams.get('version');
-                url = getSchemaURL(url_schema_name, version);
-                loadSchema(url_schema_name, url);
-                setDropdownBtnText(url_schema_name, version);
-            } 
-            else
-                loadDefaultSchema(url_schema_name);
-        }
-        else {
-            // set button text immediately with the default schema being loaded
-            $('#dropdownSchemaButton').text('Schema: ' + schema_name);
-            loadDefaultSchema(schema_name);
-        }
+
+    // Best-effort initial button text (real value set once loadSchema completes)
+    var initialDisplayName = isPrereleaseMode ? baseSchemaName + ' (prerelease)' : baseSchemaName;
+    $('#dropdownSchemaButton').text('Schema: ' + initialDisplayName);
+
+    // Load the initial schema.
+    // ?version= only makes sense for releases; ignore it in prerelease mode.
+    if (isPrereleaseMode) {
+        await loadPrereleaseSchema(baseSchemaName);
+    } else if (urlParams.has('version')) {
+        var version = urlParams.get('version');
+        var url = getSchemaURL(baseSchemaName, version);
+        loadSchema(baseSchemaName, url);
+    } else {
+        await loadDefaultSchema(baseSchemaName);
     }
 
     // set synonym getter behaviors
@@ -222,11 +211,13 @@ async function getGithubSchema(schema_name) {
                     deprecated["isDeprecated"].push(true);
                 }
             });
-        } else {
-            console.error('Failed to fetch deprecated schemas: HTTP ' + response.status);
+        } else if (response.status !== 404) {
+            // 404 is expected for library schemas that don't have deprecated versions
+            console.warn('Could not fetch deprecated schemas: HTTP ' + response.status);
         }
     } catch(e) {
-        console.error('Error fetching deprecated schemas:', e);
+        // Silently ignore errors for deprecated folder - it may not exist
+        console.debug('Deprecated schemas not available:', e.message);
     }
     
     Object.keys(deprecated).forEach(key => deprecated[key].reverse());
@@ -287,17 +278,29 @@ function buildSchemaVersionDropdown(schema_name) {
 
 /**
  * Get the unique prerelease schema xml from prerelease dir
+ * @returns Promise<string> The download URL of the prerelease XML file
  */
-function getPrereleaseXml(prerelease_endpoint) {
-    var download_url = "";
-    $.ajax({dataType: "json", url: prerelease_endpoint, async: false, success: function(data) {
-        data.forEach(function(item,index) {
-            if (item["name"].includes('xml') && download_url === "") {
-                download_url = item["download_url"];
+async function getPrereleaseXml(prerelease_endpoint) {
+    try {
+        const response = await fetch(prerelease_endpoint);
+        if (!response.ok) {
+            console.error('Failed to fetch prerelease folder:', response.status);
+            return "";
+        }
+        const data = await response.json();
+        
+        // Find the first XML file
+        for (let item of data) {
+            if (item.name.endsWith('.xml')) {
+                return item.download_url;
             }
-        })
-    }});
-    return download_url;
+        }
+        console.warn('No XML file found in prerelease folder:', prerelease_endpoint);
+        return "";
+    } catch (e) {
+        console.error('Error fetching prerelease XML:', e);
+        return "";
+    }
 }
 
 /**
@@ -321,17 +324,37 @@ function getSchemaURL(schema_name, version) {
  */
 function loadSchema(schema_name, url)
 {
+    if (!url || typeof url !== 'string') {
+        console.error('loadSchema: missing or invalid URL for', schema_name, url);
+        showErrorMessage('Unable to load "' + schema_name + '" (no download URL available).');
+        return;
+    }
     let re = /HED.*xml/;
-    let schemaVersion = url.match(re)[0];
-    if ((schemaVersion.charAt(3) >= "8" && !schemaVersion.includes('alpha')) || url.includes('test')) // assuming schemaVersion has form 'HEDx.x.x.*'
-        useNewFormat = true;
-    else 
-        useNewFormat = false;
-        
+    let match = url.match(re);
+    if (!match) {
+        console.error('loadSchema: URL does not match expected pattern:', url);
+        showErrorMessage('Unable to load "' + schema_name + '" (unexpected URL format).');
+        return;
+    }
+    let schemaVersion = match[0];
+    // Decide new-format vs old-format rendering from the major semantic version.
+    // New format applies from HED 8.0.0-alpha.3 onward (see displayResult() doc);
+    // in practice, treating all 8.x+ as new format is correct because pre-alpha.3
+    // versions aren't served from the hedxml folder.
+    // Robust for both standard filenames ("HED8.4.0") and library filenames
+    // ("HED_mouse_8.4.0"), and doesn't over-match on the "alpha" substring.
+    // A filename with no numeric version (e.g. "HED_mouse_prerelease") is
+    // treated as new format — old-format schemas always carried a pre-8 numeric
+    // version in the filename.
+    let majorMatch = extractSemanticVersion(schemaVersion).match(/^(\d+)/);
+    useNewFormat = !majorMatch || parseInt(majorMatch[1], 10) >= 8 || url.includes('test');
+
     if (url.includes('deprecated')) // schema link will be */deprecated/*.xml if deprecated
         var isDeprecated = true;
-    else 
+    else
         var isDeprecated = false;
+
+    currentSchemaName = schema_name; // Track the currently loaded schema
 
     $.get(url, function(data,status) {
         xml = $.parseXML(data);
@@ -341,15 +364,43 @@ function loadSchema(schema_name, url)
         getSchemaNodes();
     });
     setDropdownBtnText(schema_name, schemaVersion.split('.xml')[0]);
-    
-    // set prerelease switch btn href
-    if (schema_name.includes('prerelease')) {
-        var name_without_prerelease = schema_name.replace('_prerelease', '');
-        $('.prerelease-switch').attr('href', replaceUrlParam("index.html", 'schema', name_without_prerelease));
+    // Fire-and-forget: updatePrereleaseToggleUI is async but its result only
+    // affects button state. Catch to avoid unhandled promise rejections if
+    // checkSchemaVersionExists() throws unexpectedly.
+    updatePrereleaseToggleUI().catch(function (err) {
+        console.error('Failed to update prerelease toggle UI:', err);
+    });
+}
+
+/**
+ * Update the "View prerelease / View released schema" button's label and
+ * enabled/disabled state based on what is currently loaded.
+ * A prerelease-only schema (no release available) will end up with the button
+ * disabled and, on click, showing an inline error message.
+ */
+async function updatePrereleaseToggleUI() {
+    var isCurrentlyPrerelease = currentSchemaName.includes('_prerelease');
+    var baseSchemaName = currentSchemaName.replace('_prerelease', '');
+    var toggleBtn = $('#prereleaseToggle');
+    var toggleText = $('#prereleaseText');
+
+    if (isCurrentlyPrerelease) {
+        toggleText.text('View released schema');
+    } else {
+        toggleText.text('View prerelease schema');
     }
-    else
-        $('.prerelease-switch').attr('href', replaceUrlParam("prerelease.html", 'schema', schema_name + '_prerelease'));
- 
+
+    // Enable only if the "other" version actually exists. When disabled, expose
+    // the reason via a native title tooltip since the click-driven error toast
+    // can't fire from a disabled button.
+    var otherExists = await checkSchemaVersionExists(baseSchemaName, !isCurrentlyPrerelease);
+    toggleBtn.prop('disabled', !otherExists);
+    if (!otherExists) {
+        var versionType = isCurrentlyPrerelease ? 'released' : 'prerelease';
+        toggleBtn.attr('title', 'The ' + versionType + ' version of "' + baseSchemaName + '" is not available.');
+    } else {
+        toggleBtn.removeAttr('title');
+    }
 }
 
 /**
@@ -417,32 +468,165 @@ function findLatestVersion(versions, isDeprecated, downloadLinks) {
 }
 
 async function loadDefaultSchema(schema_name) {
-    // build schema version dropdown
+    // Prefer the latest release; if none exists (e.g. prerelease-only "mouse"),
+    // fall back to prerelease. No HED_*_Latest.xml fallback — that file doesn't
+    // exist for prerelease-only schemas and produces a misleading 404.
     buildSchemaVersionDropdown(schema_name);
 
-    // get the latest version from GitHub
-    githubSchema = await getGithubSchema(schema_name);
+    var githubSchema = await getGithubSchema(schema_name);
     var latestUrl = findLatestVersion(githubSchema["version"], githubSchema["isDeprecated"], githubSchema["download_link"]);
 
-    // load default schema - use actual URL if found, otherwise fall back to Latest redirect
     if (latestUrl) {
         loadSchema(schema_name, latestUrl);
+        return;
+    }
+
+    var prereleaseExists = await checkSchemaVersionExists(schema_name, true);
+    if (prereleaseExists) {
+        await loadPrereleaseSchema(schema_name);
+        return;
+    }
+
+    showErrorMessage('No release or prerelease version of "' + schema_name + '" is available.');
+}
+
+/**
+ * Always load the prerelease XML for the given base schema name.
+ * Used from the prerelease browsing view and as a fallback from loadDefaultSchema
+ * for prerelease-only schemas.
+ */
+async function loadPrereleaseSchema(base_schema_name) {
+    buildSchemaVersionDropdown(base_schema_name);
+
+    var apiPath;
+    if (base_schema_name === 'standard') {
+        apiPath = github_endpoint + "/standard_schema/prerelease";
     } else {
-        // fallback if GitHub API returns no data
-        if (schema_name == "standard") {
-            xml_path = github_raw_endpoint + "/standard_schema/hedxml/HEDLatest.xml";
-        }
-        else {
-            xml_path = github_raw_endpoint + "/library_schemas/" + schema_name + "/hedxml/HED_" + schema_name.toLowerCase() + "_Latest.xml";
-        }
-        loadSchema(schema_name, xml_path);
+        apiPath = github_endpoint + "/library_schemas/" + base_schema_name + "/prerelease";
+    }
+
+    var prereleaseLink = await getPrereleaseXml(apiPath);
+    if (prereleaseLink) {
+        loadSchema(base_schema_name + '_prerelease', prereleaseLink);
+    } else {
+        showErrorMessage('The prerelease version of "' + base_schema_name + '" is not available.');
     }
 }
 
 function setDropdownBtnText(schema_name, version) {
-    $('#dropdownSchemaButton').text('Schema: ' + schema_name);
+    // Format schema name for display: strip '_prerelease' and add '(prerelease)' suffix if needed
+    var displaySchemaName = schema_name;
+    if (schema_name.includes('_prerelease')) {
+        var nameWithoutPrerelease = schema_name.replace('_prerelease', '');
+        displaySchemaName = nameWithoutPrerelease + ' (prerelease)';
+    }
+    $('#dropdownSchemaButton').text('Schema: ' + displaySchemaName);
     $('#dropdownSchemaVersionButton').text('Version: ' + version);
 }
+
+/**
+ * Check if a schema version (prerelease or release) exists
+ * @param schemaName The base schema name (without _prerelease suffix)
+ * @param checkPrerelease true = check for prerelease, false = check for release versions
+ * @returns Promise<boolean> true if the version exists
+ */
+async function checkSchemaVersionExists(schemaName, checkPrerelease) {
+    try {
+        var apiPath;
+        if (schemaName === 'standard') {
+            apiPath = github_endpoint + '/standard_schema';
+        } else {
+            apiPath = github_endpoint + '/library_schemas/' + schemaName;
+        }
+        
+        if (checkPrerelease) {
+            apiPath += '/prerelease';
+        } else {
+            apiPath += '/hedxml';
+        }
+        
+        const response = await fetch(apiPath);
+        if (!response.ok) return false;
+        
+        const data = await response.json();
+        
+        if (checkPrerelease) {
+            // For prerelease, check if the folder has any XML files
+            return data.some(item => item.name.endsWith('.xml'));
+        } else {
+            // For release, check if there are release XML files (e.g., HED8.x.x.xml)
+            return data.some(item => item.name.endsWith('.xml') && /\d+\.\d+\.\d+/.test(item.name));
+        }
+    } catch (e) {
+        console.error('Error checking schema version availability:', e);
+        return false;
+    }
+}
+
+/**
+ * Handle toggle between prerelease and release versions of the current schema.
+ * Navigates directly to schema-browser.html with the right ?prerelease= flag
+ * and preserves the schema name via ?schema=. Going through the index.html /
+ * prerelease.html redirect pages drops query params.
+ */
+async function handlePrereleaseToggle() {
+    var isCurrentlyPrerelease = currentSchemaName.includes('_prerelease');
+    var baseSchemaName = currentSchemaName.replace('_prerelease', '');
+    var checkingPrerelease = !isCurrentlyPrerelease;
+
+    var exists = await checkSchemaVersionExists(baseSchemaName, checkingPrerelease);
+
+    if (exists) {
+        var target = 'schema-browser.html?schema=' + encodeURIComponent(baseSchemaName);
+        if (checkingPrerelease) {
+            target += '&prerelease=true';
+        }
+        window.location.href = target;
+    } else {
+        var versionType = isCurrentlyPrerelease ? 'released' : 'prerelease';
+        var message = 'The ' + versionType + ' version of "' + baseSchemaName + '" is not available.';
+        showErrorMessage(message);
+    }
+}
+
+/**
+ * Display a red error message tooltip near the prerelease button
+ * @param message The error message to display
+ */
+function showErrorMessage(message) {
+    console.log('Showing error message:', message);
+    
+    // Create or get error message element
+    var errorEl = $('#prerelease-error-msg');
+    if (errorEl.length === 0) {
+        errorEl = $('<div id="prerelease-error-msg"></div>');
+        errorEl.css({
+            'position': 'fixed',
+            'top': '80px',
+            'right': '20px',
+            'background-color': '#f8d7da',
+            'border': '2px solid #721c24',
+            'color': '#721c24',
+            'padding': '12px 20px',
+            'border-radius': '4px',
+            'z-index': '10000',
+            'max-width': '400px',
+            'font-weight': '500',
+            'display': 'block'
+        });
+        $('body').append(errorEl);
+    }
+    
+    errorEl.text(message).show();
+    
+    // Auto-hide after 4 seconds
+    setTimeout(function() {
+        errorEl.fadeOut(300);
+    }, 4000);
+}
+
+// The prerelease toggle button in schema-browser.html has onclick="handlePrereleaseToggle()"
+// (no jQuery delegate needed).
 // -------------------------------------------------------------------------
 // Pure-JS XML → HTML transformation
 // Replaces the deprecated XSLTProcessor / XSLT pipeline.
