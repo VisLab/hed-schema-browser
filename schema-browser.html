@@ -219,7 +219,11 @@
       <script>
          // load() reads ?schema=, ?version=, and ?prerelease=true from the URL itself
          // and updates the prerelease toggle button state after each schema loads.
-         load("standard");
+         // .catch surfaces any startup failure in the console instead of as an
+         // unhandled promise rejection.
+         load("standard").catch(function (err) {
+             console.error('Schema browser failed to initialize:', err);
+         });
       </script>
    </body>
 </html>

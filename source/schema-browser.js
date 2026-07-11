@@ -58,15 +58,22 @@ async function load(schema_name) {
     var isPrereleaseMode = urlParams.get('prerelease') === 'true' || schema_name.includes('prerelease');
     var baseSchemaName = schema_name.replace('_prerelease', '');
 
-    // Build the schema dropdown. Onclick handler matches current page mode so
+    // Build the schema dropdown. Click handler matches current page mode so
     // switching schemas from within prerelease view keeps loading prereleases.
-    var loaderFn = isPrereleaseMode ? 'loadPrereleaseSchema' : 'loadDefaultSchema';
-    var html = '<a class="dropdown-item" onclick="' + loaderFn + '(\'standard\')">standard</a>';
-    $("#schemaDropdown").append(html);
+    // Names come from the GitHub API and are inserted via .text() / a bound
+    // click handler rather than concatenated into HTML, to avoid injection if
+    // a schema folder is ever named with quotes or angle brackets.
+    var loaderFn = isPrereleaseMode ? loadPrereleaseSchema : loadDefaultSchema;
+    var addSchemaItem = function (name) {
+        $('<a class="dropdown-item" href="#"></a>')
+            .text(name)
+            .on('click', function (e) { e.preventDefault(); loaderFn(name); })
+            .appendTo('#schemaDropdown');
+    };
+    addSchemaItem('standard');
     var library_schemas = getLibarySchemas();
     for (var i = 0; i < library_schemas.length; i++) {
-        html = '<a class="dropdown-item" onclick="' + loaderFn + '(\'' + library_schemas[i] + '\')">' + library_schemas[i] + '</a>';
-        $("#schemaDropdown").append(html);
+        addSchemaItem(library_schemas[i]);
     }
 
     // Best-effort initial button text (real value set once loadSchema completes)
@@ -330,10 +337,17 @@ function loadSchema(schema_name, url)
         return;
     }
     let schemaVersion = match[0];
-    if ((schemaVersion.charAt(3) >= "8" && !schemaVersion.includes('alpha')) || url.includes('test')) // assuming schemaVersion has form 'HEDx.x.x.*'
-        useNewFormat = true;
-    else
-        useNewFormat = false;
+    // Decide new-format vs old-format rendering from the major semantic version.
+    // New format applies from HED 8.0.0-alpha.3 onward (see displayResult() doc);
+    // in practice, treating all 8.x+ as new format is correct because pre-alpha.3
+    // versions aren't served from the hedxml folder.
+    // Robust for both standard filenames ("HED8.4.0") and library filenames
+    // ("HED_mouse_8.4.0"), and doesn't over-match on the "alpha" substring.
+    // A filename with no numeric version (e.g. "HED_mouse_prerelease") is
+    // treated as new format — old-format schemas always carried a pre-8 numeric
+    // version in the filename.
+    let majorMatch = extractSemanticVersion(schemaVersion).match(/^(\d+)/);
+    useNewFormat = !majorMatch || parseInt(majorMatch[1], 10) >= 8 || url.includes('test');
 
     if (url.includes('deprecated')) // schema link will be */deprecated/*.xml if deprecated
         var isDeprecated = true;
@@ -350,7 +364,12 @@ function loadSchema(schema_name, url)
         getSchemaNodes();
     });
     setDropdownBtnText(schema_name, schemaVersion.split('.xml')[0]);
-    updatePrereleaseToggleUI();
+    // Fire-and-forget: updatePrereleaseToggleUI is async but its result only
+    // affects button state. Catch to avoid unhandled promise rejections if
+    // checkSchemaVersionExists() throws unexpectedly.
+    updatePrereleaseToggleUI().catch(function (err) {
+        console.error('Failed to update prerelease toggle UI:', err);
+    });
 }
 
 /**
