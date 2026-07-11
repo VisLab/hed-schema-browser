@@ -8,6 +8,7 @@ var github_raw_endpoint = "https://raw.githubusercontent.com/hed-standard/hed-sc
 //Get the button
 let scrollToTopBtn = null;
 var buildSchemaVersionDropdownToken = 0;
+var currentSchemaName = 'standard'; // Track currently loaded schema
 
 /**
  * Escape HTML special characters to prevent XSS and broken rendering
@@ -66,11 +67,9 @@ function load(schema_name) {
         library_schemas = getLibarySchemas();
         for (var i=0; i < library_schemas.length; i++) {
             var library_schema_link = getPrereleaseXml(library_schema_api_path + "/" + library_schemas[i] + "/prerelease"); 
-            var html = '<a class="dropdown-item" id="schemaStandard" + " onclick="loadSchema(\'' + library_schemas[i] + '\', \'' + library_schema_link + '\')">' + library_schemas[i] + '</a>';
+            var html = '<a class="dropdown-item" id="schemaStandard" + " onclick="loadSchema(\'' + library_schemas[i] + '_prerelease\', \'' + library_schema_link + '\')">' + library_schemas[i] + '</a>';
             $("#schemaDropdown").append(html);
         }
-        // set button text immediately with the prerelease schema being loaded
-        $('#dropdownSchemaButton').text('Schema: ' + name_without_prerelease);
     }
     else {
         // add schema names to schema dropdown button
@@ -333,6 +332,8 @@ function loadSchema(schema_name, url)
     else 
         var isDeprecated = false;
 
+    currentSchemaName = schema_name; // Track the currently loaded schema
+    
     $.get(url, function(data,status) {
         xml = $.parseXML(data);
         displayResult(xml, useNewFormat, isDeprecated);
@@ -341,14 +342,6 @@ function loadSchema(schema_name, url)
         getSchemaNodes();
     });
     setDropdownBtnText(schema_name, schemaVersion.split('.xml')[0]);
-    
-    // set prerelease switch btn href
-    if (schema_name.includes('prerelease')) {
-        var name_without_prerelease = schema_name.replace('_prerelease', '');
-        $('.prerelease-switch').attr('href', replaceUrlParam("index.html", 'schema', name_without_prerelease));
-    }
-    else
-        $('.prerelease-switch').attr('href', replaceUrlParam("prerelease.html", 'schema', schema_name + '_prerelease'));
  
 }
 
@@ -440,9 +433,82 @@ async function loadDefaultSchema(schema_name) {
 }
 
 function setDropdownBtnText(schema_name, version) {
-    $('#dropdownSchemaButton').text('Schema: ' + schema_name);
+    // Format schema name for display: strip '_prerelease' and add '(prerelease)' suffix if needed
+    var displaySchemaName = schema_name;
+    if (schema_name.includes('_prerelease')) {
+        var nameWithoutPrerelease = schema_name.replace('_prerelease', '');
+        displaySchemaName = nameWithoutPrerelease + ' (prerelease)';
+    }
+    $('#dropdownSchemaButton').text('Schema: ' + displaySchemaName);
     $('#dropdownSchemaVersionButton').text('Version: ' + version);
 }
+
+/**
+ * Check if a schema version (prerelease or release) exists
+ * @param schemaName The base schema name (without _prerelease suffix)
+ * @param checkPrerelease true = check for prerelease, false = check for release versions
+ * @returns Promise<boolean> true if the version exists
+ */
+async function checkSchemaVersionExists(schemaName, checkPrerelease) {
+    try {
+        var apiPath;
+        if (schemaName === 'standard') {
+            apiPath = github_endpoint + '/standard_schema';
+        } else {
+            apiPath = github_endpoint + '/library_schemas/' + schemaName;
+        }
+        
+        if (checkPrerelease) {
+            apiPath += '/prerelease';
+        } else {
+            apiPath += '/hedxml';
+        }
+        
+        const response = await fetch(apiPath);
+        if (!response.ok) return false;
+        
+        const data = await response.json();
+        
+        if (checkPrerelease) {
+            // For prerelease, check if the folder has any XML files
+            return data.some(item => item.name.endsWith('.xml'));
+        } else {
+            // For release, check if there are release XML files (e.g., HED8.x.x.xml)
+            return data.some(item => item.name.endsWith('.xml') && /\d+\.\d+\.\d+/.test(item.name));
+        }
+    } catch (e) {
+        console.error('Error checking schema version availability:', e);
+        return false;
+    }
+}
+
+/**
+ * Handle toggle between prerelease and release versions of the current schema
+ */
+async function handlePrereleaseToggle() {
+    var isCurrentlyPrerelease = currentSchemaName.includes('_prerelease');
+    var baseSchemaName = currentSchemaName.replace('_prerelease', '');
+    var checkingPrerelease = !isCurrentlyPrerelease; // Toggle: if currently release, check prerelease
+    
+    // Check if target version exists
+    var exists = await checkSchemaVersionExists(baseSchemaName, checkingPrerelease);
+    
+    if (exists) {
+        var targetPage = isCurrentlyPrerelease ? 'index.html' : 'prerelease.html';
+        window.location.href = replaceUrlParam(targetPage, 'schema', baseSchemaName);
+    } else {
+        var versionType = isCurrentlyPrerelease ? 'released' : 'prerelease';
+        alert('The ' + versionType + ' version of "' + baseSchemaName + '" is not available.');
+    }
+}
+
+// Initialize prerelease button click handler
+$(document).ready(function() {
+    $('.prerelease-switch').on('click', function(e) {
+        e.preventDefault();
+        handlePrereleaseToggle();
+    });
+});
 // -------------------------------------------------------------------------
 // Pure-JS XML → HTML transformation
 // Replaces the deprecated XSLTProcessor / XSLT pipeline.
