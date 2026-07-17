@@ -2,7 +2,7 @@
 
 Interactive, browser-based viewer for HED (Hierarchical Event Descriptor) vocabularies.
 
-[![Deploy](https://github.com/hed-standard/hed-schema-browser/workflows/Deploy/badge.svg)](https://github.com/hed-standard/hed-schema-browser/actions)
+[![Test](https://github.com/hed-standard/hed-schema-browser/actions/workflows/test.yml/badge.svg)](https://github.com/hed-standard/hed-schema-browser/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 The HED Schema Browser is a static, single-page web application for exploring the
@@ -62,7 +62,7 @@ Parameters can be combined, for example
 | `source/hed-collapsible.css` | Styling for the collapsible tree. |
 | `source/hed-schema.xsl`, `source/hed-schema-old.xsl` | Legacy XSLT stylesheets. Retained for reference; no longer used at runtime (rendering is now done in JavaScript). |
 | `source/README.md` | Developer reference describing the internals in more depth. |
-| `.github/workflows/deploy.yml` | GitHub Actions workflow that deploys the site to GitHub Pages. |
+| `.github/workflows/test.yml` | GitHub Actions workflow that runs link checking and HTML validation on push and pull request. |
 | `LICENSE` | MIT license. |
 
 There is no build step, no bundler, and no package manager. The site is served
@@ -170,11 +170,11 @@ For a deeper description of the internals, see
 
 ## Deployment
 
-Deployment is automatic. Pushing to the `main` branch triggers the
-[Deploy workflow](.github/workflows/deploy.yml), which uploads the entire
-repository root as a static-site artifact and publishes it to GitHub Pages. No
-build step runs. After a merge to `main`, allow a few minutes for GitHub Pages
-to propagate, then verify at https://www.hedtags.org/hed-schema-browser/.
+Deployment is automatic. Pushing to the `main` branch publishes the site via
+GitHub Pages (configured in the repository settings to deploy from the `main`
+branch root). No build step runs. After a merge to `main`, allow a few minutes
+for GitHub Pages to propagate, then verify at
+https://www.hedtags.org/hed-schema-browser/.
 
 ## Embedding in another site
 
@@ -206,5 +206,5 @@ Released under the [MIT License](LICENSE). Copyright (c) 2022 HED Working Group.
 
 - [hed-standard/hed-schemas](https://github.com/hed-standard/hed-schemas) — the
   source of all HED schema XML files consumed by this browser.
-- [HED resources](https://www.hed-resources.org/) — documentation, tools, and
-  tutorials for the HED ecosystem.
+- [HED resources](https://www.hedtags.org/hed-resources) — documentation, tools,
+  and tutorials for the HED ecosystem.

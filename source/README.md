@@ -115,6 +115,9 @@ A floating panel whose content updates as the user hovers over HED tags. `displa
 
 # Deployment
 
-The repository is deployed to GitHub Pages automatically by the [Deploy workflow](../.github/workflows/deploy.yml) whenever a commit is pushed to the `main` branch. GitHub Actions uploads the entire repository root as a static-site artifact; no build step is required.
+The repository is deployed to GitHub Pages automatically whenever a commit is
+pushed to the `main` branch. Deployment is configured in the repository settings
+to serve directly from the `main` branch root — no Actions workflow or build
+step is required.
 
 After merging changes to `main`, visit `https://www.hedtags.org/hed-schema-browser/` to verify the deployment. GitHub Pages propagation typically takes up to a few minutes.
