@@ -80,6 +80,14 @@ a.list-group-item:last-of-type + div.attribute + div::after {
     padding: 15px;
 }
 
+/* Match the info board ("side car") text to the schema tree (tahoma 16px).
+   Everything inherits that already except the h4 title, which Bootstrap sizes
+   at 24px/500 — bring it in line (bold, like a leaf tag in the tree). */
+#infoBoard #title {
+    font-size: 16px;
+    font-weight: bold;
+}
+
 /*Scroll to top button*/
 #btn-back-to-top {
   position: fixed;
