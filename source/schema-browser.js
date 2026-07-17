@@ -3,12 +3,20 @@ var allSchemaNodes = [];
 var inLibraryNodes = [];
 var suggestedTagsDict = {};
 var useNewFormat = true;
-var github_endpoint = "https://api.github.com/repos/hed-standard/hed-schemas/contents";
+// All schema data now comes from the schema_versions.json manifest at the root
+// of the hed-schemas repo, fetched directly from the raw CDN
+// (raw.githubusercontent.com, Fastly-backed) instead of the rate-limited GitHub
+// REST API. github_raw_endpoint is the base for both the manifest and every
+// schema XML download.
 var github_raw_endpoint = "https://raw.githubusercontent.com/hed-standard/hed-schemas/main";
+var schema_manifest_url = github_raw_endpoint + "/schema_versions.json";
+var schema_manifest = null; // cached parsed manifest (fetched once per page load)
+var showDeprecatedSchemas = false; // state of the "Show deprecated / Hide deprecated" toggle
 //Get the button
 let scrollToTopBtn = null;
 var buildSchemaVersionDropdownToken = 0;
 var currentSchemaName = 'standard'; // Track currently loaded schema
+var currentMaxDepth = 1; // Deepest tag level present in the loaded schema, shown in the "Expand to level" tooltip
 
 /**
  * Escape HTML special characters to prevent XSS and broken rendering
@@ -57,6 +65,16 @@ async function load(schema_name) {
     // Determine prerelease browsing mode from URL / arg, then normalize base name
     var isPrereleaseMode = urlParams.get('prerelease') === 'true' || schema_name.includes('prerelease');
     var baseSchemaName = schema_name.replace('_prerelease', '');
+
+    // Fetch the schema manifest up front. Everything below (schema list, version
+    // dropdowns, prerelease detection) reads from this cached manifest rather
+    // than hitting the GitHub REST API.
+    try {
+        await loadSchemaManifest();
+    } catch (err) {
+        console.error('Failed to load schema manifest:', err);
+        showErrorMessage('Unable to load the schema list. Please try again later.');
+    }
 
     // Build the schema dropdown. Click handler matches current page mode so
     // switching schemas from within prerelease view keeps loading prereleases.
@@ -140,91 +158,104 @@ async function load(schema_name) {
 }
 
 /**
- * Get all currently available library schemas
+ * Get all currently available library schema names from the cached manifest.
+ * The standard schema is keyed by "" in the manifest and is added separately
+ * by load(); it is excluded here. Requires loadSchemaManifest() to have run
+ * (load() awaits it before calling this).
  */
 function getLibarySchemas() {
-    libray_schemas_endpoint = github_endpoint + "/library_schemas";
-    library_schemas = [];
-
-    $.ajax({dataType: "json", url: libray_schemas_endpoint, async: false, success: function(data) {
-        data.forEach(function(item,index) {
-            library_schemas.push(item["name"]);
-        })
-    }});
-    return library_schemas;
+    if (!schema_manifest || !schema_manifest.libraries) {
+        return [];
+    }
+    return Object.keys(schema_manifest.libraries)
+        .filter(function (name) { return name !== ''; })
+        .sort();
 }
 
 /**
- * Get GitHub schema versions asynchronously
- * Fetches from https://github.com/hed-standard/hed-schemas
- * @param schema_name 'standard' or library schema name
- * @returns Promise resolving to object with version, download_link, and isDeprecated arrays
+ * Fetch and cache the schema_versions.json manifest from the raw CDN.
+ * The manifest lists every standard/library schema together with its
+ * released, prerelease, and deprecated versions (each an object with
+ * date/file/sha/version). It is fetched once per page load; subsequent calls
+ * return the cached copy.
+ * @returns Promise resolving to the parsed manifest object
+ */
+async function loadSchemaManifest() {
+    if (schema_manifest) {
+        return schema_manifest;
+    }
+    const response = await fetch(schema_manifest_url);
+    if (!response.ok) {
+        throw new Error('Failed to fetch schema manifest: HTTP ' + response.status);
+    }
+    schema_manifest = await response.json();
+    return schema_manifest;
+}
+
+/**
+ * Return the manifest entry (with released/prerelease/deprecated arrays) for a
+ * schema. The browser uses "standard" internally, but the manifest keys the
+ * standard schema by the empty string "". Returns null if the manifest isn't
+ * loaded or the schema is unknown.
+ */
+function getManifestEntry(schema_name) {
+    if (!schema_manifest || !schema_manifest.libraries) {
+        return null;
+    }
+    var key = (schema_name === 'standard') ? '' : schema_name;
+    return schema_manifest.libraries[key] || null;
+}
+
+/**
+ * Build a raw-CDN download URL from a manifest "file" path
+ * (e.g. "standard_schema/hedxml/HED8.4.0.xml").
+ */
+function manifestFileUrl(file) {
+    return github_raw_endpoint + '/' + file;
+}
+
+/**
+ * Derive the version label shown in the version dropdown from a manifest file
+ * path: the XML basename without ".xml" and without the leading "HED"/"HED_"
+ * prefix, e.g. "HED8.4.0.xml" -> "8.4.0", "HED_lang_1.1.0.xml" -> "lang_1.1.0".
+ * The remaining string still contains a semantic version, so the existing
+ * sort/compare/latest logic that parses these strings is unaffected.
+ */
+function versionLabelFromFile(file) {
+    return file.split('/').pop().replace(/\.xml$/, '').replace(/^HED_?/, '');
+}
+
+/**
+ * Get schema versions for a schema from the cached manifest.
+ * Returns an object with parallel version / download_link / isDeprecated
+ * arrays — the same shape this code previously built from the GitHub REST API,
+ * so downstream consumers (buildSchemaVersionDropdown, findLatestVersion,
+ * loadDefaultSchema) are unchanged. Released versions come first, followed by
+ * deprecated versions.
+ * @param schema_name 'standard' or a library schema name
+ * @returns Promise resolving to {version, download_link, isDeprecated}
  */
 async function getGithubSchema(schema_name) {
     var githubSchema = {"version": [], "download_link": [], "isDeprecated": []};
-    let xml_path;
-    if (schema_name == "standard") {
-        xml_path = github_endpoint + "/standard_schema/hedxml";
-    }
-    else {
-        xml_path = github_endpoint + "/library_schemas/" + schema_name + "/hedxml";
+
+    await loadSchemaManifest();
+    var entry = getManifestEntry(schema_name);
+    if (!entry) {
+        console.error('getGithubSchema: no manifest entry for', schema_name);
+        return githubSchema;
     }
 
-    try {
-        // get non-deprecated schemas
-        const response = await fetch(xml_path);
-        if (response.ok) {
-            const data = await response.json();
-            data.forEach(function(item, index) {
-                // only include real versioned XML files; skip aliases like HEDLatest.xml
-                if (item["name"].endsWith('.xml') && /\d+\.\d+\.\d+/.test(item["name"])) {
-                    var version = item["name"].replace(/\.xml$/, '');
-                    var link = item["download_url"];
-                    githubSchema["version"].push(version);
-                    githubSchema["download_link"].push(link);
-                    githubSchema["isDeprecated"].push(false);
-                }
-            });
-        } else {
-            console.error('Failed to fetch non-deprecated schemas: HTTP ' + response.status);
-        }
-    } catch(e) {
-        console.error('Error fetching non-deprecated schemas:', e);
-    }
-    
-    Object.keys(githubSchema).forEach(key => githubSchema[key].reverse());
-    
-    // get deprecated schemas
-    var hedxml_url = xml_path + "/deprecated";
-    var deprecated = {"version": [], "download_link": [], "isDeprecated": []};
-    try {
-        const response = await fetch(hedxml_url);
-        if (response.ok) {
-            const data = await response.json();
-            data.forEach(function(item, index) {
-                // only include real versioned XML files
-                if (item["name"].endsWith('.xml') && /\d+\.\d+\.\d+/.test(item["name"])) {
-                    var version = item["name"].replace(/\.xml$/, '');
-                    var link = item["download_url"];
-                    deprecated["version"].push(version);
-                    deprecated["download_link"].push(link);
-                    deprecated["isDeprecated"].push(true);
-                }
-            });
-        } else if (response.status !== 404) {
-            // 404 is expected for library schemas that don't have deprecated versions
-            console.warn('Could not fetch deprecated schemas: HTTP ' + response.status);
-        }
-    } catch(e) {
-        // Silently ignore errors for deprecated folder - it may not exist
-        console.debug('Deprecated schemas not available:', e.message);
-    }
-    
-    Object.keys(deprecated).forEach(key => deprecated[key].reverse());
-    Object.keys(deprecated).forEach(key => {
-        deprecated[key].forEach(elem => githubSchema[key].push(elem))
+    (entry.released || []).forEach(function (item) {
+        githubSchema["version"].push(versionLabelFromFile(item.file));
+        githubSchema["download_link"].push(manifestFileUrl(item.file));
+        githubSchema["isDeprecated"].push(false);
     });
-    
+    (entry.deprecated || []).forEach(function (item) {
+        githubSchema["version"].push(versionLabelFromFile(item.file));
+        githubSchema["download_link"].push(manifestFileUrl(item.file));
+        githubSchema["isDeprecated"].push(true);
+    });
+
     return githubSchema;
 }
 
@@ -240,7 +271,7 @@ function buildSchemaVersionDropdown(schema_name) {
 
     // generate unique token to prevent out-of-order updates if user switches schemas quickly
     var requestToken = ++buildSchemaVersionDropdownToken;
-    var showDeprecated = $("#showDeprecatedSchemas").is(':checked');
+    var showDeprecated = showDeprecatedSchemas;
 
     // get versions based on provided schema name - now async
     getGithubSchema(schema_name).then(function(githubSchema) {
@@ -288,53 +319,60 @@ function buildSchemaVersionDropdown(schema_name) {
 }
 
 /**
- * Called when the "Show deprecated schemas" checkbox toggles.
- * Rebuilds the version dropdown for whatever schema is currently loaded.
+ * Click handler for the "Show deprecated / Hide deprecated" toggle button.
+ * Flips whether deprecated versions appear in the version dropdown, updates the
+ * button label to reflect the action it now offers, and rebuilds the version
+ * dropdown for whatever schema is currently loaded.
  */
-function onShowDeprecatedSchemasChange() {
+function handleDeprecatedToggle() {
+    showDeprecatedSchemas = !showDeprecatedSchemas;
+    $("#deprecatedText").text(showDeprecatedSchemas ? "Hide deprecated" : "Show deprecated");
     var baseSchemaName = currentSchemaName.replace('_prerelease', '');
     buildSchemaVersionDropdown(baseSchemaName);
 }
 
 /**
- * Get the unique prerelease schema xml from prerelease dir
- * @returns Promise<string> The download URL of the prerelease XML file
+ * Get the raw-CDN download URL of the prerelease XML for a schema from the
+ * cached manifest. If more than one prerelease is listed, the highest semantic
+ * version is chosen. Returns "" when the schema has no prerelease.
+ * @returns The download URL of the prerelease XML file, or "" if none
  */
-async function getPrereleaseXml(prerelease_endpoint) {
-    try {
-        const response = await fetch(prerelease_endpoint);
-        if (!response.ok) {
-            console.error('Failed to fetch prerelease folder:', response.status);
-            return "";
-        }
-        const data = await response.json();
-        
-        // Find the first XML file
-        for (let item of data) {
-            if (item.name.endsWith('.xml')) {
-                return item.download_url;
-            }
-        }
-        console.warn('No XML file found in prerelease folder:', prerelease_endpoint);
-        return "";
-    } catch (e) {
-        console.error('Error fetching prerelease XML:', e);
+function getPrereleaseUrl(schema_name) {
+    var entry = getManifestEntry(schema_name);
+    if (!entry || !entry.prerelease || entry.prerelease.length === 0) {
         return "";
     }
+    var best = entry.prerelease[0];
+    for (var i = 1; i < entry.prerelease.length; i++) {
+        if (compareSemanticVersions(entry.prerelease[i].version, best.version) > 0) {
+            best = entry.prerelease[i];
+        }
+    }
+    return manifestFileUrl(best.file);
 }
 
 /**
- * Get download link of the schema given hedVersion
- * @param hedVersion    schema version number
- * @returns     schema download link
+ * Get the raw-CDN download URL for a specific schema version by looking it up
+ * in the manifest (searching released, then deprecated, then prerelease).
+ * @param schema_name 'standard' or library schema name
+ * @param version     clean semantic version, e.g. "8.3.0"
+ * @returns The schema download link, or "" if the version isn't in the manifest
  */
 function getSchemaURL(schema_name, version) {
-    if (schema_name == "standard") {
-        xml_path = github_raw_endpoint + "/standard_schema/hedxml/HED" + version + ".xml";
+    var entry = getManifestEntry(schema_name);
+    if (entry) {
+        var buckets = ['released', 'deprecated', 'prerelease'];
+        for (var b = 0; b < buckets.length; b++) {
+            var arr = entry[buckets[b]] || [];
+            for (var i = 0; i < arr.length; i++) {
+                if (arr[i].version === version) {
+                    return manifestFileUrl(arr[i].file);
+                }
+            }
+        }
     }
-    else
-        xml_path = github_raw_endpoint + "/library_schemas/" + schema_name + "/hedxml/HED_" + schema_name.toLowerCase() + "_" + version + ".xml";
-    return xml_path;
+    console.error('getSchemaURL: version "' + version + '" not found for schema "' + schema_name + '"');
+    return "";
 }
 
 /**
@@ -385,7 +423,10 @@ function loadSchema(schema_name, url)
         toLevel(2);
         getSchemaNodes();
     });
-    setDropdownBtnText(schema_name, schemaVersion.split('.xml')[0]);
+    // Strip the "HED"/"HED_" filename prefix so the version button matches the
+    // dropdown labels (e.g. "8.4.0", "score_2.1.0"). schemaVersion itself keeps
+    // the prefix above because the new/old-format detection relies on it.
+    setDropdownBtnText(schema_name, schemaVersion.split('.xml')[0].replace(/^HED_?/, ''));
     // Fire-and-forget: updatePrereleaseToggleUI is async but its result only
     // affects button state. Catch to avoid unhandled promise rejections if
     // checkSchemaVersionExists() throws unexpectedly.
@@ -407,9 +448,22 @@ async function updatePrereleaseToggleUI() {
     var toggleText = $('#prereleaseText');
 
     if (isCurrentlyPrerelease) {
-        toggleText.text('View released schema');
+        toggleText.text('Show released');
     } else {
-        toggleText.text('View prerelease schema');
+        toggleText.text('Show prerelease');
+    }
+
+    // Deprecated versions are only meaningful for the released view, so gray out
+    // the "Show deprecated" toggle in the prerelease view and reset it to its
+    // default (hidden) state.
+    var deprecatedBtn = $('#deprecatedToggle');
+    if (isCurrentlyPrerelease) {
+        showDeprecatedSchemas = false;
+        $('#deprecatedText').text('Show deprecated');
+        deprecatedBtn.prop('disabled', true)
+            .attr('title', 'Deprecated versions are not available in the prerelease view.');
+    } else {
+        deprecatedBtn.prop('disabled', false).removeAttr('title');
     }
 
     // Enable only if the "other" version actually exists. When disabled, expose
@@ -518,16 +572,10 @@ async function loadDefaultSchema(schema_name) {
  * for prerelease-only schemas.
  */
 async function loadPrereleaseSchema(base_schema_name) {
+    await loadSchemaManifest();
     buildSchemaVersionDropdown(base_schema_name);
 
-    var apiPath;
-    if (base_schema_name === 'standard') {
-        apiPath = github_endpoint + "/standard_schema/prerelease";
-    } else {
-        apiPath = github_endpoint + "/library_schemas/" + base_schema_name + "/prerelease";
-    }
-
-    var prereleaseLink = await getPrereleaseXml(apiPath);
+    var prereleaseLink = getPrereleaseUrl(base_schema_name);
     if (prereleaseLink) {
         loadSchema(base_schema_name + '_prerelease', prereleaseLink);
     } else {
@@ -553,36 +601,15 @@ function setDropdownBtnText(schema_name, version) {
  * @returns Promise<boolean> true if the version exists
  */
 async function checkSchemaVersionExists(schemaName, checkPrerelease) {
-    try {
-        var apiPath;
-        if (schemaName === 'standard') {
-            apiPath = github_endpoint + '/standard_schema';
-        } else {
-            apiPath = github_endpoint + '/library_schemas/' + schemaName;
-        }
-        
-        if (checkPrerelease) {
-            apiPath += '/prerelease';
-        } else {
-            apiPath += '/hedxml';
-        }
-        
-        const response = await fetch(apiPath);
-        if (!response.ok) return false;
-        
-        const data = await response.json();
-        
-        if (checkPrerelease) {
-            // For prerelease, check if the folder has any XML files
-            return data.some(item => item.name.endsWith('.xml'));
-        } else {
-            // For release, check if there are release XML files (e.g., HED8.x.x.xml)
-            return data.some(item => item.name.endsWith('.xml') && /\d+\.\d+\.\d+/.test(item.name));
-        }
-    } catch (e) {
-        console.error('Error checking schema version availability:', e);
+    await loadSchemaManifest();
+    var entry = getManifestEntry(schemaName);
+    if (!entry) {
         return false;
     }
+    if (checkPrerelease) {
+        return (entry.prerelease || []).length > 0;
+    }
+    return (entry.released || []).length > 0;
 }
 
 /**
@@ -911,14 +938,14 @@ function displayResult(xml, useNewFormat, isDeprecated) {
         $("#valueClassDefinitions").html(result.valueClassDefinitions);
         $("#schemaAttributeDefinitions").html(result.schemaAttributeDefinitions);
         $("#propertyDefinitions").html(result.propertyDefinitions);
-        var versionText = "HED " + result.version;
+        var versionText = "HED Schema: " + result.version;
         versionText = isDeprecated ? versionText + " (deprecated)" : versionText;
         $("#hed").html(versionText);
     } else {
         const result = transformOldFormat(xml);
         $("#schema").html(result.schema);
         $("#schemaDefinitions").hide();
-        var versionText = "HED " + result.version;
+        var versionText = "HED Schema: " + result.version;
         versionText = isDeprecated ? versionText + " (deprecated)" : versionText;
         $("#hed").html(versionText);
     }
@@ -993,31 +1020,72 @@ function getPath(node) {
     return path;
 }
 
-/**
- * Button listener for collapse/hide all button
- */
-function showHideAll() {
-    if ($("#schema").attr("status") == "show") {
-        hideAll()
-    }
-    else {
-        showAll()
-    }
-}
-function showAll() {
-    $("#schema").find(".collapse").addClass("show");
-    $("#schema").attr("status","show");
-}
 function hideAll() {
     $("#schema").find(".collapse").removeClass("show");
     $("#schema").attr("status","hide");
 }
+/**
+ * Find the deepest tag level present in the currently loaded schema tree,
+ * used to bound/annotate the "Expand to level" box. Recomputed on every schema
+ * load since different schemas/libraries nest to different depths.
+ */
+function getMaxDepth() {
+    var max = 1;
+    $("#schema a.list-group-item").each(function () {
+        var match = ($(this).attr("class") || "").match(/level-(\d+)/);
+        if (match) {
+            max = Math.max(max, parseInt(match[1], 10));
+        }
+    });
+    return max;
+}
+/**
+ * Show tags down to (and including) the given depth level, hiding deeper ones,
+ * and refresh the "Expand to level" box/tooltip to reflect the applied value.
+ */
 function toLevel(level) {
+    currentMaxDepth = getMaxDepth();
+    level = Math.max(1, Math.min(parseInt(level, 10) || 1, currentMaxDepth));
     hideAll()
     for (var i=1; i < level; i++) {
         $("#schema").find(`.level-${i}`).addClass("show");
     }
     $("#schema").attr("status","show");
+    $("#toLevel").val(level).attr("title", "Enter the depth level to expand to (max " + currentMaxDepth + ")");
+    syncExpandCollapseBtn(level);
+}
+function expandLevelInputChanged(value) {
+    toLevel(value);
+}
+function collapseAllNodes() {
+    toLevel(1);
+}
+function expandAllNodes() {
+    toLevel(getMaxDepth());
+}
+/**
+ * Keep the single Expand/Collapse toggle button in sync with the actual tree
+ * state. When everything down to the deepest level is shown, the button offers
+ * "Collapse all"; otherwise it offers "Expand all". Called from toLevel() so it
+ * also reflects manual "Expand to level" entries, not just button clicks.
+ */
+function syncExpandCollapseBtn(level) {
+    var fullyExpanded = level >= currentMaxDepth;
+    $("#expandCollapseBtn")
+        .attr("data-state", fullyExpanded ? "expanded" : "collapsed")
+        .text(fullyExpanded ? "Collapse all" : "Expand all");
+}
+/**
+ * Click handler for the Expand/Collapse toggle button. Expands the whole tree
+ * when currently collapsed, collapses to the top level when currently expanded.
+ * The label/state is updated by syncExpandCollapseBtn() via toLevel().
+ */
+function toggleExpandCollapse() {
+    if ($("#expandCollapseBtn").attr("data-state") === "expanded") {
+        toLevel(1);
+    } else {
+        expandAllNodes();
+    }
 }
 function capitalizeFirstLetter(string) {
   return string.charAt(0).toUpperCase() + string.slice(1);
@@ -1303,7 +1371,7 @@ function showHideMergedLibrary() {
         // hide base schema, show only merged library tags
         $(".list-group-item:not(.hasInLibrary)").hide();
         $("#schema").attr("inlibrarystatus","hide");
-        $("#toggleInLibrary").text("View merged schema");
+        $("#toggleInLibrary").text("Show merged");
         autocomplete(document.getElementById("searchTags"), inLibraryNodes, suggestedTagsDict);
     }
     else {

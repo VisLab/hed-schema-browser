@@ -106,7 +106,8 @@ a.list-group-item:last-of-type + div.attribute + div::after {
 
 /* Clearly visible disabled state for the toolbar toggle buttons */
 #toggleInLibrary:disabled,
-#prereleaseToggle:disabled {
+#prereleaseToggle:disabled,
+#deprecatedToggle:disabled {
   opacity: 1;
   background-color: #d6d6d6;
   color: #999;
