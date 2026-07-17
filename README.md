@@ -9,10 +9,11 @@ The HED Schema Browser is a static, single-page web application for exploring th
 HED standard schema and the HED library schemas. It renders each schema as a
 collapsible tree of tags, lets you search and inspect individual tags, switch
 between released and prerelease versions, and view unit, value, and attribute
-definitions. All schema data is fetched at runtime directly from the
-[hed-standard/hed-schemas](https://github.com/hed-standard/hed-schemas) GitHub
-repository, so the browser always reflects the current published schemas without
-needing to bundle any XML.
+definitions. At startup, the browser fetches a manifest (`schema_versions.json`)
+from the [hed-standard/hed-schemas](https://github.com/hed-standard/hed-schemas)
+repository listing all available schemas and versions, then loads requested XML
+files on demand. This ensures the browser always reflects the current published
+schemas without needing to bundle any data.
 
 ## Live site
 
@@ -71,8 +72,8 @@ exactly as the files appear in the repository.
 
 The browser must be served over HTTP. Opening the HTML file directly from disk
 as a `file://` URL will not work: the browser's cross-origin (CORS) rules block
-the GitHub API calls used to list and fetch schemas, and relative asset loading
-breaks. Use one of the local servers below instead.
+the remote schema fetches (manifest and XML files from `raw.githubusercontent.com`),
+and relative asset loading breaks. Use one of the local servers below instead.
 
 ### Option 1: Python (recommended, no extra install)
 
@@ -124,21 +125,26 @@ Then open the URL printed in the terminal, for example
    **Open with Live Server**. The page opens automatically (typically at
    `http://127.0.0.1:5500/schema-browser.html`; the port may vary).
 
-### GitHub API rate limits
+### Schema discovery and availability
 
-The browser lists schemas and downloads XML using the unauthenticated GitHub
-REST API, which is limited to **60 requests per hour per IP address**. During
-active development you can hit this limit quickly. The usual symptom is a blank
-schema list or empty schema content. If this happens, wait until the limit
-resets (up to an hour) and reload the page.
+The browser fetches the schema list and all XML files from
+`raw.githubusercontent.com` (Fastly-backed CDN), which has no per-IP rate
+limits. Schema discovery works by fetching `schema_versions.json` from the
+[hed-standard/hed-schemas](https://github.com/hed-standard/hed-schemas)
+repository at startup; if this manifest fetch fails, the schema list will be
+blank. Troubleshooting: check your network connection and browser console for
+error messages. If the manifest fails repeatedly, verify that
+`raw.githubusercontent.com` is accessible.
 
 ## How it works
 
 At a high level:
 
 1. `load()` in `source/schema-browser.js` reads the URL parameters and populates
-   the **Schema** dropdown by querying the GitHub API for the available standard
-   and library schemas.
+   the **Schema** dropdown by fetching `schema_versions.json` from
+   `raw.githubusercontent.com`. This manifest lists all available standard and
+   library schemas together with their released, prerelease, and deprecated
+   versions.
 2. Selecting a schema (or loading the default) triggers `loadSchema()`, the
    single point that fetches an XML schema file from
    `raw.githubusercontent.com`, transforms it into HTML, and injects it into the

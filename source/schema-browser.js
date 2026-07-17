@@ -74,6 +74,7 @@ async function load(schema_name) {
     } catch (err) {
         console.error('Failed to load schema manifest:', err);
         showErrorMessage('Unable to load the schema list. Please try again later.');
+        return; // Bail out to prevent broken page state and unhandled promise rejections
     }
 
     // Build the schema dropdown. Click handler matches current page mode so
