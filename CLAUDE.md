@@ -8,7 +8,7 @@ Static single-page browser for HED (Hierarchical Event Descriptor) vocabularies.
 
 Live site: https://www.hedtags.org/hed-schema-browser/
 
-Deployment: pushing to `main` triggers `.github/workflows/deploy.yml`, which uploads the entire repo root as a static-site artifact to GitHub Pages.
+Deployment: pushing to `main` publishes the site via GitHub Pages (configured in repository settings to deploy from the `main` branch root). No Actions deploy workflow exists.
 
 ## Running locally
 
