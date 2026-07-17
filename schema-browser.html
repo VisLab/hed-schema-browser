@@ -5,31 +5,22 @@
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>HED Schema Browser</title>
       
-      <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css" integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
-      <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/v/dt/dt-1.10.20/datatables.min.css"/>
-      <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet">
+      <!-- Third-party libraries are vendored locally under vendor/ so the app has
+           no external CDN dependencies. This avoids the whole page breaking when a
+           CDN is unreachable or its cached file is corrupted (ERR_CACHE_READ_FAILURE
+           on the jQuery CDN previously left jQuery undefined and killed the app).
+           Versions: Bootstrap 4.4.1, jQuery 3.3.1, jQuery UI 1.12.1, Popper 1.16.0. -->
+      <link rel="stylesheet" href="vendor/bootstrap-4.4.1.min.css">
       <link rel="stylesheet" type="text/css" href="source/hed-collapsible.css">
-      <link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
-      <script src="https://code.jquery.com/jquery-3.3.1.min.js" integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8=" crossorigin="anonymous"></script>
-      <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+      <link rel="stylesheet" href="vendor/jquery-ui-1.12.1.css">
+      <script src="vendor/jquery-3.3.1.min.js"></script>
+      <script src="vendor/jquery-ui-1.12.1.min.js"></script>
       <script src="source/schema-browser.js"></script>
       <style>
         .autocomplete {
             /*the container must be positioned relative:*/
             position: relative;
             display: inline-block;
-        }
-        input {
-            border: 1px solid transparent;
-            padding: 10px;
-            font-size: 16px;
-        }
-        input[type=text] {
-            width: 100%;
-        }
-        input[type=submit] {
-            background-color: DodgerBlue;
-            color: #fff;
         }
         .autocomplete-items {
             position: absolute;
@@ -61,17 +52,82 @@
    </head>
    <body>
       <div class="container-fluid">
+         <div class="row mt-3">
+            <div class="col">
+               <div class="d-flex flex-wrap align-items-center" role="toolbar" aria-label="Schema controls">
+
+                  <!-- Cluster: schema + version selection -->
+                  <div class="d-flex flex-nowrap align-items-center mr-4 mb-2">
+                     <div class="dropdown mr-2">
+                        <button class="btn btn-light dropdown-toggle" type="button" id="dropdownSchemaButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" >
+                        Schema
+                        </button>
+                        <div class="dropdown-menu" id="schemaDropdown" aria-labelledby="dropdownSchemaButton"></div>
+                     </div>
+                     <div class="dropdown">
+                        <button class="btn btn-light dropdown-toggle" type="button" id="dropdownSchemaVersionButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" >
+                        Schema version
+                        </button>
+                        <div class="dropdown-menu" id="schemaVersionDropdown" aria-labelledby="dropdownSchemaVersionButton"></div>
+                     </div>
+                  </div>
+
+                  <!-- Cluster: display toggles -->
+                  <div class="d-flex flex-nowrap align-items-center mr-4 mb-2">
+                     <button class="btn btn-light mr-2" type="button" id="toggleInLibrary" onclick="showHideMergedLibrary()">
+                        Show library only
+                     </button>
+                     <button class="btn btn-light mr-2" type="button" id="prereleaseToggle" onclick="handlePrereleaseToggle()">
+                        <span id="prereleaseText">Show prerelease</span>
+                     </button>
+                     <button class="btn btn-light" type="button" id="deprecatedToggle" onclick="handleDeprecatedToggle()">
+                        <span id="deprecatedText">Show deprecated</span>
+                     </button>
+                  </div>
+
+                  <!-- Cluster: expand controls -->
+                  <div class="d-flex flex-nowrap align-items-center mb-2">
+                     <button type="button" class="btn btn-light mr-2" id="expandCollapseBtn"
+                             data-state="collapsed" onclick="toggleExpandCollapse()">Expand all</button>
+                     <div class="input-group" style="width: auto;">
+                        <div class="input-group-prepend">
+                           <span class="input-group-text" id="toLevelLabel">Expand to level</span>
+                        </div>
+                        <input type="text" class="form-control text-center" id="toLevel" style="width: 3em;" maxlength="3"
+                               inputmode="numeric" pattern="[0-9]*" value="1"
+                               oninput="this.value = this.value.replace(/[^0-9]/g, '')"
+                               onchange="expandLevelInputChanged(this.value)"
+                               onkeydown="if (event.key === 'Enter') { this.blur(); }"
+                               aria-describedby="toLevelLabel" title="Enter the depth level to expand to (max 1)">
+                     </div>
+                  </div>
+
+               </div>
+            </div>
+         </div>
          <div class="row">
             <div class="col col-lg-12">
-               <h1 class="display-4 mt-4 text-center text-primary page-title">HED Schema Browser</h1>
+               <h1 id="hed" class="hed-header text-center">HED Schema</h1>
                <div class="accordion" id="accordionExample">
                   <div class="card">
-                     <div class="card-header" id="headingOne">
+                     <div class="card-header d-flex align-items-center flex-wrap" id="headingOne">
                         <h5 class="mb-0">
                            <button class="btn btn-link" type="button" data-toggle="collapse" data-target="#schemaDesc" aria-expanded="true" aria-controls="schemaDesc">
                               Schema information
                            </button>
                         </h5>
+                        <div class="input-group input-group-sm ml-auto mr-2" style="width: auto;">
+                           <div class="input-group-prepend">
+                              <span class="input-group-text" id="searchTagLabel">Search term</span>
+                           </div>
+                           <div class="ui-widget" style="position: relative;">
+                              <input type="text" class="form-control" id="searchTags" aria-describedby="searchTagLabel" title="Search for HED tags">
+                           </div>
+                        </div>
+                        <div class="form-check form-check-inline mr-0">
+                           <input class="form-check-input" type="checkbox" id="searchDeprecatedTags" onchange="getSchemaNodes()">
+                           <label class="form-check-label" for="searchDeprecatedTags">Search deprecated tags</label>
+                        </div>
                      </div>
                      <div id="schemaDesc" class="collapse" aria-labelledby="headingOne" data-parent="#accordionExample">
                         <div class="card-body">
@@ -82,70 +138,6 @@
                   </div>
                </div>
                <hr class="my-4">
-            </div>
-         </div>
-         <div class="row">
-            <div class="btn-toolbar mb-2" role="toolbar" aria-label="Toolbar with button groups">
-               <div class="dropdown mr-2">
-                  <button class="btn btn-light dropdown-toggle" type="button" id="dropdownSchemaButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" >
-                  Schema
-                  </button>
-                  <div class="dropdown-menu" id="schemaDropdown" aria-labelledby="dropdownSchemaButton"></div>
-               </div>
-               <div class="dropdown mr-2">
-                  <button class="btn btn-light dropdown-toggle" type="button" id="dropdownSchemaVersionButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" >
-                  Schema version
-                  </button>
-                  <div class="dropdown-menu" id="schemaVersionDropdown" aria-labelledby="dropdownSchemaVersionButton"></div>
-               </div>
-
-                <button class="btn btn-light mr-2" type="button" id="toggleInLibrary" onclick="showHideMergedLibrary()">
-                    Show library only
-                </button>
-
-                <button class="btn btn-light mr-2" type="button" id="prereleaseToggle" onclick="handlePrereleaseToggle()">
-                    <span id="prereleaseText">View prerelease schema</span>
-                </button>
-
-            </div>
-         </div>
-         <div class="row">
-            <div class="btn-toolbar mb-2" role="toolbar" aria-label="Toolbar with button groups">
-               <div class="btn-group mr-2">
-                  <button type="button" class="btn btn-light" onclick="showHideAll()">Expand/Collapse all</button>
-               </div>
-               <div class="input-group mr-2">
-                  <div class="input-group-prepend">
-                     <span class="input-group-text" id="searchTagLabel">Search term</span>
-                  </div>
-                  <div class="ui-widget">
-                     <input type="text" class="form-control" id="searchTags" aria-describedby="searchTagLabel" title="Search for HED tags">
-                  </div>
-               </div>
-               <div class="input-group mr-2">
-                  <div class="input-group-prepend">
-                     <span class="input-group-text" id="toLevelLabel">Expand to level</span>
-                  </div>
-                  <input type="text" class="form-control" id="toLevel" oninput="toLevel(this.value)" aria-describedby="toLevelLabel" title="Enter the depth level to expand to">
-               </div>
-            </div>
-         </div>
-         <div class="row">
-            <div class="btn invisible">
-                  <button type="button" class="btn btn-light">Expand/Collapse all</button>
-            </div>
-            <div class="form-check mr-4">
-              <input class="form-check-input" type="checkbox" id="showDeprecatedSchemas" onchange="onShowDeprecatedSchemasChange()">
-              <label class="form-check-label" for="showDeprecatedSchemas">Show deprecated schemas</label>
-            </div>
-            <div class="form-check">
-              <input class="form-check-input" type="checkbox" id="searchDeprecatedTags" onchange="getSchemaNodes()">
-              <label class="form-check-label" for="searchDeprecatedTags">Search deprecated tags</label>
-            </div>
-         </div>
-         <div class="row">
-            <div class="col col-lg-3">
-               <h1 id="hed" class="hed-header">HED</h1>
             </div>
          </div>
          <div class="row">
@@ -216,10 +208,10 @@
          class="btn btn-primary btn-floating btn-lg"
          id="btn-back-to-top"
          >Scroll to top
-      <i class="fa fa-arrow-up" aria-hidden="true"></i>
+      <span aria-hidden="true">&#8593;</span>
       </button>
-      <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js" integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo" crossorigin="anonymous"></script>
-      <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js" integrity="sha384-wfSDF2E50Y2D1uUdj0O3uMBJnjuUD4Ih7YwaYd1iqfktj0Uod8GCExl3Og8ifwB6" crossorigin="anonymous"></script>
+      <script src="vendor/popper-1.16.0.min.js"></script>
+      <script src="vendor/bootstrap-4.4.1.min.js"></script>
       <script>
          // load() reads ?schema=, ?version=, and ?prerelease=true from the URL itself
          // and updates the prerelease toggle button state after each schema loads.
