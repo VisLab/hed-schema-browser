@@ -100,16 +100,21 @@ a.list-group-item:last-of-type + div.attribute + div::after {
     font-size: 1.75rem;
 }
 
-/* Expand/collapse affordance for the "Schema information" header: a caret that
-   points right when collapsed and down when expanded. Bootstrap toggles the
-   .collapsed class on the trigger. */
-#headingOne [data-toggle="collapse"]::after {
+/* Expand/collapse affordance for section headers: a caret that points right
+   when collapsed and down when expanded. Bootstrap toggles the .collapsed class
+   on the trigger. Applied to any toggle carrying the .collapse-toggle class. */
+.collapse-toggle::after {
     content: " \25BC";   /* down triangle = expanded */
     font-size: 0.7em;
     vertical-align: middle;
 }
-#headingOne [data-toggle="collapse"].collapsed::after {
+.collapse-toggle.collapsed::after {
     content: " \25B6";   /* right triangle = collapsed (click to expand) */
+}
+
+/* Keep the "Schema extra sections" block text at the compact 14px chrome size. */
+#schemaDefinitions {
+    font-size: 0.875rem;
 }
 
 /*Scroll to top button*/
