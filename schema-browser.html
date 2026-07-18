@@ -113,7 +113,7 @@
                   <div class="card">
                      <div class="card-header d-flex align-items-center flex-wrap py-2" id="headingOne">
                         <h5 class="mb-0">
-                           <button class="btn btn-link btn-sm collapsed" type="button" data-toggle="collapse" data-target="#schemaDesc" aria-expanded="false" aria-controls="schemaDesc">
+                           <button class="btn btn-link btn-sm collapse-toggle collapsed" type="button" data-toggle="collapse" data-target="#schemaDesc" aria-expanded="false" aria-controls="schemaDesc">
                               Schema information
                            </button>
                         </h5>
@@ -138,55 +138,11 @@
                      </div>
                   </div>
                </div>
-               <hr class="my-4">
             </div>
          </div>
-         <div class="row">
+         <div class="row mt-3">
             <div class="col-6">
                <div id="schema" class="list-group list-group-root well"></div>
-               <h2 id="hedAdditional" class="hed-header">Additional schema properties</h2>
-               <div class="accordion accordion-hidden" id="schemaDefinitions">
-                  <div class="card">
-                     <div class="card-header" id="headingUnitClass">
-                        <button class="btn btn-link btn-block text-left" type="button" data-toggle="collapse" data-target="#unitClassDefinitions" aria-expanded="true" aria-controls="unitClassDefinitions">
-                        Unit class definitions
-                        </button>
-                     </div>
-                     <div id="unitClassDefinitions" class="list-group collapse multi-collapse"></div>
-                  </div>
-                  <div class="card">
-                     <div class="card-header" id="headingUnitModifier">
-                        <button class="btn btn-link btn-block text-left" type="button" data-toggle="collapse" data-target="#unitModifierDefinitions" aria-expanded="true" aria-controls="unitModifierDefinitions">
-                        Unit modifier definitions
-                        </button>
-                     </div>
-                     <div id="unitModifierDefinitions" class="list-group collapse multi-collapse"></div>
-                  </div>
-                  <div class="card">
-                     <div class="card-header" id="headingValueClass">
-                        <button class="btn btn-link btn-block text-left" type="button" data-toggle="collapse" data-target="#valueClassDefinitions" aria-expanded="true" aria-controls="valueClassDefinitions">
-                        Value class definitions
-                        </button>
-                     </div>
-                     <div id="valueClassDefinitions" class="list-group collapse multi-collapse"></div>
-                  </div>
-                  <div class="card">
-                     <div class="card-header" id="headingSchemaAttribute">
-                        <button class="btn btn-link btn-block text-left" type="button" data-toggle="collapse" data-target="#schemaAttributeDefinitions" aria-expanded="true" aria-controls="schemaAttributeDefinitions">
-                        Schema attribute definitions
-                        </button>
-                     </div>
-                     <div id="schemaAttributeDefinitions" class="list-group collapse multi-collapse"></div>
-                  </div>
-                  <div class="card">
-                     <div class="card-header" id="headingProperty">
-                        <button class="btn btn-link btn-block text-left" type="button" data-toggle="collapse" data-target="#propertyDefinitions" aria-expanded="true" aria-controls="propertyDefinitions">
-                        Property definitions
-                        </button>
-                     </div>
-                     <div id="propertyDefinitions" class="list-group collapse multi-collapse"></div>
-                  </div>
-               </div>
             </div>
             <div class="col-5">
                <div id="infoBoard" class="border border-primary rounded">
@@ -201,6 +157,38 @@
                </div>
             </div>
             <div class="col"></div>
+         </div>
+         <!-- Schema extra sections: full-width collapsible below the tree and info board -->
+         <div class="row mt-3">
+            <div class="col-12">
+               <div id="schemaDefinitions" class="accordion accordion-hidden">
+                  <div class="card">
+                     <div class="card-header py-2" id="headingExtra">
+                        <button class="btn btn-link btn-sm collapse-toggle collapsed" type="button" data-toggle="collapse" data-target="#extraSectionsBody" aria-expanded="false" aria-controls="extraSectionsBody">
+                           Schema extra sections
+                        </button>
+                     </div>
+                     <div id="extraSectionsBody" class="collapse" aria-labelledby="headingExtra">
+                        <div class="card-body">
+                           <button class="btn btn-link btn-sm collapse-toggle collapsed d-block text-left" type="button" data-toggle="collapse" data-target="#unitClassDefinitions" aria-expanded="false" aria-controls="unitClassDefinitions">Unit classes</button>
+                           <div id="unitClassDefinitions" class="list-group collapse multi-collapse"></div>
+
+                           <button class="btn btn-link btn-sm collapse-toggle collapsed d-block text-left" type="button" data-toggle="collapse" data-target="#unitModifierDefinitions" aria-expanded="false" aria-controls="unitModifierDefinitions">Unit modifiers</button>
+                           <div id="unitModifierDefinitions" class="list-group collapse multi-collapse"></div>
+
+                           <button class="btn btn-link btn-sm collapse-toggle collapsed d-block text-left" type="button" data-toggle="collapse" data-target="#valueClassDefinitions" aria-expanded="false" aria-controls="valueClassDefinitions">Value classes</button>
+                           <div id="valueClassDefinitions" class="list-group collapse multi-collapse"></div>
+
+                           <button class="btn btn-link btn-sm collapse-toggle collapsed d-block text-left" type="button" data-toggle="collapse" data-target="#schemaAttributeDefinitions" aria-expanded="false" aria-controls="schemaAttributeDefinitions">Schema attributes</button>
+                           <div id="schemaAttributeDefinitions" class="list-group collapse multi-collapse"></div>
+
+                           <button class="btn btn-link btn-sm collapse-toggle collapsed d-block text-left" type="button" data-toggle="collapse" data-target="#propertyDefinitions" aria-expanded="false" aria-controls="propertyDefinitions">Schema properties</button>
+                           <div id="propertyDefinitions" class="list-group collapse multi-collapse"></div>
+                        </div>
+                     </div>
+                  </div>
+               </div>
+            </div>
          </div>
       </div>
       <!-- Back to top button -->

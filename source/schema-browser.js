@@ -314,7 +314,7 @@ function buildSchemaVersionDropdown(schema_name) {
     }).catch(function(error) {
         // only show error if this is still the current request
         if (requestToken === buildSchemaVersionDropdownToken) {
-            console.error('Error fetching schema versions for ' + schema_name + ':', error);
+            console.error('Error fetching schema versions for %s:', schema_name, error);
         }
     });
 }
@@ -372,7 +372,7 @@ function getSchemaURL(schema_name, version) {
             }
         }
     }
-    console.error('getSchemaURL: version "' + version + '" not found for schema "' + schema_name + '"');
+    console.error('getSchemaURL: version "%s" not found for schema "%s"', version, schema_name);
     return "";
 }
 
@@ -968,24 +968,26 @@ function infoBoardMouseoverEvent(event) {
         var path = getPath(selected);
         var nodeName = selected.text();
         var finalText = "";
+        // The attribute text below comes from DOM text nodes and is injected into
+        // #attribute_info via .html() further down, so every dynamic piece must be
+        // HTML-escaped here; only the static <p> wrappers are literal markup.
         if (useNewFormat) {
             selected.nextAll(`.attribute[name='${nodeName}']`).each(function(index) {
                 var parsed = $(this).text();
                 if (parsed.includes(",")) {
-                    var trimmed = parsed.trim();
-                    var trimmed = trimmed.replace(/(^,)|(,$)/g, "")
-                    finalText += "<p>" + trimmed + "</p>";
+                    var trimmed = parsed.trim().replace(/(^,)|(,$)/g, "");
+                    finalText += "<p>" + escapeHtml(trimmed) + "</p>";
                 }
                 else
-                    finalText += "<p>" + parsed.trim() + "</p>";
+                    finalText += "<p>" + escapeHtml(parsed.trim()) + "</p>";
             });
         }
         else {
             var attrs = selected.next(".attribute").text();
-                parsed = attrs.split(','); // attributes are written in comma separated string
-                parsed = parsed.map(x => "<p>" + x.trim() + "</p>");
-                parsed = parsed.slice(0,parsed.length-1); // last item is empty (result of extra , at the end)
-                finalText = parsed.join("");
+            var parsed = attrs.split(','); // attributes are written in comma separated string
+            parsed = parsed.map(x => "<p>" + escapeHtml(x.trim()) + "</p>");
+            parsed = parsed.slice(0, parsed.length - 1); // last item is empty (result of extra , at the end)
+            finalText = parsed.join("");
         }
             finalText = finalText == null || finalText.length == 0 ? "" : finalText;
         var disp_div = ["schemaNode", "unitClassDef", "unitModifierDef", "valueClassDef", "attributeDef", "propertyDef"];
