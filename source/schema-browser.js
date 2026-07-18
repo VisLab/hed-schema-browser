@@ -1050,7 +1050,7 @@ function infoBoardMouseoverEvent(event) {
             finalText = parsed.join("");
         }
             finalText = finalText == null || finalText.length == 0 ? "" : finalText;
-        var disp_div = ["schemaNode", "unitClassDef", "unitModifierDef", "valueClassDef", "attributeDef", "propertyDef"];
+        var disp_div = ["schemaNode", "unitClassDef", "unitModifierDef", "valueClassDef", "attributeDef", "propertyDef", "sourceDef", "prefixDef", "externalAnnotationDef"];
         if (disp_div.includes(selected.attr('name'))) {
             $("h4#title").text(nodeName);
             $("p#tag").text("Long form: " + path);
