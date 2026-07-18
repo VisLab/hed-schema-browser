@@ -54,18 +54,18 @@
       <div class="container-fluid">
          <div class="row mt-3">
             <div class="col">
-               <div class="d-flex flex-wrap align-items-center" role="toolbar" aria-label="Schema controls">
+               <div class="d-flex flex-wrap align-items-center pt-2 px-3 rounded" style="background-color: #2c3e50;" role="toolbar" aria-label="Schema controls">
 
                   <!-- Cluster: schema + version selection -->
                   <div class="d-flex flex-nowrap align-items-center mr-4 mb-2">
                      <div class="dropdown mr-2">
-                        <button class="btn btn-light dropdown-toggle" type="button" id="dropdownSchemaButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" >
+                        <button class="btn btn-light btn-sm dropdown-toggle" type="button" id="dropdownSchemaButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" >
                         Schema
                         </button>
                         <div class="dropdown-menu" id="schemaDropdown" aria-labelledby="dropdownSchemaButton"></div>
                      </div>
                      <div class="dropdown">
-                        <button class="btn btn-light dropdown-toggle" type="button" id="dropdownSchemaVersionButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" >
+                        <button class="btn btn-light btn-sm dropdown-toggle" type="button" id="dropdownSchemaVersionButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" >
                         Schema version
                         </button>
                         <div class="dropdown-menu" id="schemaVersionDropdown" aria-labelledby="dropdownSchemaVersionButton"></div>
@@ -74,22 +74,29 @@
 
                   <!-- Cluster: display toggles -->
                   <div class="d-flex flex-nowrap align-items-center mr-4 mb-2">
-                     <button class="btn btn-light mr-2" type="button" id="toggleInLibrary" onclick="showHideMergedLibrary()">
+                     <button class="btn btn-light btn-sm mr-2" type="button" id="toggleInLibrary" onclick="showHideMergedLibrary()">
                         Show library only
                      </button>
-                     <button class="btn btn-light mr-2" type="button" id="prereleaseToggle" onclick="handlePrereleaseToggle()">
+                     <button class="btn btn-light btn-sm mr-2" type="button" id="prereleaseToggle" onclick="handlePrereleaseToggle()">
                         <span id="prereleaseText">Show prerelease</span>
                      </button>
-                     <button class="btn btn-light" type="button" id="deprecatedToggle" onclick="handleDeprecatedToggle()">
+                     <button class="btn btn-light btn-sm" type="button" id="deprecatedToggle" onclick="handleDeprecatedToggle()">
                         <span id="deprecatedText">Show deprecated</span>
                      </button>
                   </div>
 
-                  <!-- Cluster: expand controls -->
-                  <div class="d-flex flex-nowrap align-items-center mb-2">
-                     <button type="button" class="btn btn-light mr-2" id="expandCollapseBtn"
+               </div>
+            </div>
+         </div>
+         <div class="row" style="margin-top: 2.25rem;">
+            <div class="col col-lg-12">
+               <div class="d-flex flex-wrap align-items-center mb-2">
+                  <h1 id="hed" class="hed-header mb-0">HED Schema</h1>
+                  <!-- Expand controls, aligned to the right end of the schema-title line -->
+                  <div class="d-flex flex-nowrap align-items-center ml-auto">
+                     <button type="button" class="btn btn-light btn-sm mr-2" id="expandCollapseBtn"
                              data-state="collapsed" onclick="toggleExpandCollapse()">Expand all</button>
-                     <div class="input-group" style="width: auto;">
+                     <div class="input-group input-group-sm" style="width: auto;">
                         <div class="input-group-prepend">
                            <span class="input-group-text" id="toLevelLabel">Expand to level</span>
                         </div>
@@ -101,18 +108,12 @@
                                aria-describedby="toLevelLabel" title="Enter the depth level to expand to (max 1)">
                      </div>
                   </div>
-
                </div>
-            </div>
-         </div>
-         <div class="row">
-            <div class="col col-lg-12">
-               <h1 id="hed" class="hed-header text-center">HED Schema</h1>
                <div class="accordion" id="accordionExample">
                   <div class="card">
-                     <div class="card-header d-flex align-items-center flex-wrap" id="headingOne">
+                     <div class="card-header d-flex align-items-center flex-wrap py-2" id="headingOne">
                         <h5 class="mb-0">
-                           <button class="btn btn-link" type="button" data-toggle="collapse" data-target="#schemaDesc" aria-expanded="true" aria-controls="schemaDesc">
+                           <button class="btn btn-link btn-sm collapsed" type="button" data-toggle="collapse" data-target="#schemaDesc" aria-expanded="false" aria-controls="schemaDesc">
                               Schema information
                            </button>
                         </h5>
@@ -121,12 +122,12 @@
                               <span class="input-group-text" id="searchTagLabel">Search term</span>
                            </div>
                            <div class="ui-widget" style="position: relative;">
-                              <input type="text" class="form-control" id="searchTags" aria-describedby="searchTagLabel" title="Search for HED tags">
+                              <input type="text" class="form-control form-control-sm" id="searchTags" aria-describedby="searchTagLabel" title="Search for HED tags">
                            </div>
                         </div>
                         <div class="form-check form-check-inline mr-0">
                            <input class="form-check-input" type="checkbox" id="searchDeprecatedTags" onchange="getSchemaNodes()">
-                           <label class="form-check-label" for="searchDeprecatedTags">Search deprecated tags</label>
+                           <label class="form-check-label" for="searchDeprecatedTags" style="font-size: 0.875rem;">Search deprecated tags</label>
                         </div>
                      </div>
                      <div id="schemaDesc" class="collapse" aria-labelledby="headingOne" data-parent="#accordionExample">

@@ -80,12 +80,36 @@ a.list-group-item:last-of-type + div.attribute + div::after {
     padding: 15px;
 }
 
-/* Match the info board ("side car") text to the schema tree (tahoma 16px).
-   Everything inherits that already except the h4 title, which Bootstrap sizes
-   at 24px/500 — bring it in line (bold, like a leaf tag in the tree). */
+/* Keep secondary "chrome" text at the compact 14px size the buttons use:
+   the schema/version dropdown menus, the Schema-information description, and
+   the hover detail ("side car") card. The main schema tree keeps its own size. */
+#schemaDropdown a,
+#schemaVersionDropdown a,
+#schemaDesc .card-body,
+#infoBoard {
+    font-size: 0.875rem;
+}
+
 #infoBoard #title {
-    font-size: 16px;
+    font-size: 0.875rem;
     font-weight: bold;
+}
+
+/* Slightly smaller schema-version title (was the full h1 size). */
+#hed {
+    font-size: 1.75rem;
+}
+
+/* Expand/collapse affordance for the "Schema information" header: a caret that
+   points right when collapsed and down when expanded. Bootstrap toggles the
+   .collapsed class on the trigger. */
+#headingOne [data-toggle="collapse"]::after {
+    content: " \25BC";   /* down triangle = expanded */
+    font-size: 0.7em;
+    vertical-align: middle;
+}
+#headingOne [data-toggle="collapse"].collapsed::after {
+    content: " \25B6";   /* right triangle = collapsed (click to expand) */
 }
 
 /*Scroll to top button*/
