@@ -848,6 +848,60 @@ function renderPropertyDefinitions(defsEl) {
 }
 
 /**
+ * Render hidden .attribute divs for a flat definition's extra fields so the info
+ * board shows them on hover. Same mechanism renderAttrDivs() uses, but sourced
+ * from plain child elements (<link>/<namespace>/<iri>) instead of <attribute>.
+ * fields is an array of [label, value]; empty values are skipped.
+ */
+function renderMetaDivs(nodeName, fields) {
+    let html = '';
+    for (const [label, value] of fields) {
+        if (value) {
+            html += `<div class="attribute" style="display: none" name="${esc(nodeName)}">${esc(label)}: ${esc(value)}</div>`;
+        }
+    }
+    return html;
+}
+
+/** Render <schemaSources>: each <schemaSource> has name / link / description. */
+function renderSchemaSources(defsEl) {
+    let html = '';
+    for (const c of defsEl.querySelectorAll(':scope > schemaSource')) {
+        const name = childText(c, 'name');
+        const description = childText(c, 'description');
+        html += `<a description="${esc(description)}" role="button" class="list-group-item" tag="${esc(name)}" name="sourceDef">${esc(name)}</a>`;
+        html += renderMetaDivs(name, [['link', childText(c, 'link')]]);
+    }
+    return html;
+}
+
+/** Render <schemaPrefixes>: each <schemaPrefix> has name / namespace / description. */
+function renderSchemaPrefixes(defsEl) {
+    let html = '';
+    for (const c of defsEl.querySelectorAll(':scope > schemaPrefix')) {
+        const name = childText(c, 'name');
+        const description = childText(c, 'description');
+        html += `<a description="${esc(description)}" role="button" class="list-group-item" tag="${esc(name)}" name="prefixDef">${esc(name)}</a>`;
+        html += renderMetaDivs(name, [['namespace', childText(c, 'namespace')]]);
+    }
+    return html;
+}
+
+/** Render <externalAnnotations>: each <externalAnnotation> has name / id / iri / description. */
+function renderExternalAnnotations(defsEl) {
+    let html = '';
+    for (const c of defsEl.querySelectorAll(':scope > externalAnnotation')) {
+        const prefix = childText(c, 'name');       // e.g. "dc:"
+        const id = childText(c, 'id');             // e.g. "contributor"
+        const label = prefix + id;                 // e.g. "dc:contributor"
+        const description = childText(c, 'description');
+        html += `<a description="${esc(description)}" role="button" class="list-group-item" tag="${esc(label)}" name="externalAnnotationDef">${esc(label)}</a>`;
+        html += renderMetaDivs(label, [['iri', childText(c, 'iri')]]);
+    }
+    return html;
+}
+
+/**
  * Transform a new-format HED XML document (schema >= 8.x) into section HTML strings.
  * Replicates the output of hed-schema.xsl.
  */
@@ -869,6 +923,9 @@ function transformNewFormat(xmlDoc) {
         valueClassDefinitions:     get('valueClassDefinitions')     ? renderValueClassDefinitions(get('valueClassDefinitions'))         : '',
         schemaAttributeDefinitions:get('schemaAttributeDefinitions')? renderSchemaAttributeDefinitions(get('schemaAttributeDefinitions')): '',
         propertyDefinitions:       get('propertyDefinitions')       ? renderPropertyDefinitions(get('propertyDefinitions'))             : '',
+        schemaSources:             get('schemaSources')             ? renderSchemaSources(get('schemaSources'))                         : '',
+        schemaPrefixes:            get('schemaPrefixes')            ? renderSchemaPrefixes(get('schemaPrefixes'))                       : '',
+        externalAnnotations:       get('externalAnnotations')       ? renderExternalAnnotations(get('externalAnnotations'))             : '',
     };
 }
 
@@ -939,6 +996,9 @@ function displayResult(xml, useNewFormat, isDeprecated) {
         $("#valueClassDefinitions").html(result.valueClassDefinitions);
         $("#schemaAttributeDefinitions").html(result.schemaAttributeDefinitions);
         $("#propertyDefinitions").html(result.propertyDefinitions);
+        $("#schemaSources").html(result.schemaSources);
+        $("#schemaPrefixes").html(result.schemaPrefixes);
+        $("#externalAnnotations").html(result.externalAnnotations);
         var versionText = "HED Schema: " + result.version;
         versionText = isDeprecated ? versionText + " (deprecated)" : versionText;
         $("#hed").html(versionText);
