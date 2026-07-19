@@ -1034,11 +1034,24 @@ function tagDetailHtml($a) {
     var path = getPath($a);
 
     var attrLines = [], hedId = '';
-    $a.nextAll(".attribute[name='" + nodeName + "']").each(function () {
-        var text = $(this).text().trim().replace(/,\s*$/, '');
-        var m = text.match(/^\s*hedId\s*:\s*(.+)$/i);
-        if (m) { hedId = m[1].trim(); }
-        else if (text) { attrLines.push(text); }
+    // Gather this node's attribute divs. New format (>= 8.x) emits one
+    // .attribute[name=...] div per attribute (values may themselves be
+    // comma-separated); old format (< 8.x) emits a single unnamed .attribute div
+    // holding all attributes comma-separated. nextUntil stops at the next tag
+    // <a>, so it picks up exactly this node's attribute divs in both formats.
+    $a.nextUntil("a", ".attribute").each(function () {
+        var $d = $(this);
+        var raw = $d.text().trim().replace(/,\s*$/, '');
+        if (!raw) { return; }
+        // Only split the unnamed (old-format) div — a named div is one attribute.
+        var parts = $d.attr('name') ? [raw] : raw.split(',');
+        parts.forEach(function (p) {
+            p = p.trim();
+            if (!p) { return; }
+            var m = p.match(/^\s*hedId\s*:\s*(.+)$/i);
+            if (m) { hedId = m[1].trim(); }
+            else { attrLines.push(p); }
+        });
     });
 
     var html = '<div class="i-name">' + escapeHtml(name) + '</div>';
@@ -1102,13 +1115,14 @@ function updateClearAllState() {
     $("#clearAllTags").prop('disabled', $("#tagPinnedList .tag-section").length === 0);
 }
 
-/** Sync each parent caret glyph to whether its children container is shown. */
+/** Sync each parent caret glyph AND aria-expanded to whether its children show. */
 function syncCarets() {
     $("#schema .list-group-item.has-children").each(function () {
         // The <a> is followed by hidden .attribute divs, then the children
         // container, so use nextAll(...).first() rather than next().
-        var $target = $(this).nextAll(".list-group.collapse").first();
-        $(this).children('.tw-caret').html($target.hasClass('show') ? '▾' : '▸');
+        var shown = $(this).nextAll(".list-group.collapse").first().hasClass('show');
+        $(this).children('.tw-caret').html(shown ? '▾' : '▸');
+        $(this).attr('aria-expanded', shown ? 'true' : 'false');
     });
 }
 
@@ -1130,6 +1144,16 @@ function bindTreeInteractions() {
                 e.preventDefault();
                 togglePinnedTag($(this));
             }
+        })
+        // Keyboard expand/collapse for parent rows (the caret is mouse-only):
+        // ArrowRight expands, ArrowLeft collapses. Enter/Space still pins.
+        .on('keydown.tree', '.list-group-item.has-children', function (e) {
+            if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') { return; }
+            e.preventDefault();
+            var $target = $(this).nextAll(".list-group.collapse").first();
+            var shown = $target.hasClass('show');
+            if (e.key === 'ArrowRight' && !shown) { $target.addClass('show'); syncCarets(); }
+            else if (e.key === 'ArrowLeft' && shown) { $target.removeClass('show'); syncCarets(); }
         });
     // Remove one pinned section via its × button.
     $("#tagPinnedList").off('.tree').on('click.tree', '.unpin-x', function (e) {
@@ -1277,10 +1301,10 @@ function capitalizeFirstLetter(string) {
 function toNode(nodeName) {
     let node = $("#schema a[tag='"+nodeName+"']").first();
     if (!node.length) return;
-    let attrs = node.attr("class");
-    const levelString = attrs.match(/level-\d?/g)[0];
-    const levelNum = levelString.split('-')[1];
-    toLevel(levelNum);
+    // \d+ (not \d?) so levels >= 10 are captured correctly; null-guard the match.
+    let levelMatch = (node.attr("class") || "").match(/level-(\d+)/);
+    if (!levelMatch) return;
+    toLevel(levelMatch[1]);
     // The tree scrolls inside .pane-tree, so scroll that pane (not the window).
     node[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
     previewTag(node);   // show the found tag's details in the preview slot
