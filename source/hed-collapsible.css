@@ -37,6 +37,12 @@ a.list-group-item:last-of-type + div::after {
 a.list-group-item:last-of-type + div.attribute + div::after {
     border-style: none;
 }
+/* Same suppression when the inline .ex-attrs line (extra sections) is inserted
+   between the last item and its following .attribute divs / children container. */
+a.list-group-item:last-of-type + div.ex-attrs + div::after,
+a.list-group-item:last-of-type + div.ex-attrs + div.attribute + div::after {
+    border-style: none;
+}
 
 /*Draw tree line*/
 .list-group-item {

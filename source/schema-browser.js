@@ -919,15 +919,29 @@ function buildExtraInlineInfo() {
     });
 }
 
-/** Wire the "Show/Hide descriptions" and "Show/Hide attributes" toggles. */
+/** Reflect a toggle's on/off state in its label, .active class, and aria-pressed. */
+function syncExtraToggle($btn, containerClass, word) {
+    var on = $("#schemaDefinitions").hasClass(containerClass);
+    $btn.text((on ? 'Hide ' : 'Show ') + word)
+        .toggleClass('active', on)
+        .attr('aria-pressed', on ? 'true' : 'false');
+}
+
+/**
+ * Wire the "Show/Hide descriptions" and "Show/Hide attributes" toggles. The
+ * state lives on #schemaDefinitions (so it persists across schema reloads); the
+ * buttons are (re)initialized from it here, keeping label + aria-pressed in sync.
+ */
 function bindExtraToggles() {
+    syncExtraToggle($("#toggleExtraDesc"), 'show-ex-desc', 'descriptions');
+    syncExtraToggle($("#toggleExtraAttrs"), 'show-ex-attrs', 'attributes');
     $("#toggleExtraDesc").off('click.ex').on('click.ex', function () {
-        var on = $("#schemaDefinitions").toggleClass('show-ex-desc').hasClass('show-ex-desc');
-        $(this).text(on ? 'Hide descriptions' : 'Show descriptions').toggleClass('active', on);
+        $("#schemaDefinitions").toggleClass('show-ex-desc');
+        syncExtraToggle($(this), 'show-ex-desc', 'descriptions');
     });
     $("#toggleExtraAttrs").off('click.ex').on('click.ex', function () {
-        var on = $("#schemaDefinitions").toggleClass('show-ex-attrs').hasClass('show-ex-attrs');
-        $(this).text(on ? 'Hide attributes' : 'Show attributes').toggleClass('active', on);
+        $("#schemaDefinitions").toggleClass('show-ex-attrs');
+        syncExtraToggle($(this), 'show-ex-attrs', 'attributes');
     });
 }
 
