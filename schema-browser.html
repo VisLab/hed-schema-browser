@@ -141,22 +141,28 @@
             </div>
          </div>
          <div class="row mt-3">
-            <div class="col-6">
-               <div id="schema" class="list-group list-group-root well"></div>
-            </div>
-            <div class="col-5">
-               <div id="infoBoard" class="border border-primary rounded">
-                  <div>
-                     <p id="freezeInfo">Press enter/return to freeze the info board</p>
-                     <h4 id="title"><i>Hover over a tag for more information</i></h4>
-                     <p id="tag"></p>
-                     <p id="description"></p>
-                     <div id="attribute_info"></div>
-                     <p></p>
+            <div class="col-12">
+               <!-- Resizable split: schema tree (left) + pinned detail panel (right).
+                    Hover/focus a tag to preview it; click the name to pin. -->
+               <div class="tree-split" id="treeSplit">
+                  <div class="pane-tree">
+                     <div id="schema" class="list-group list-group-root well"></div>
+                  </div>
+                  <div class="tree-divider" id="treeDivider" role="separator" aria-orientation="vertical" title="Drag to resize"></div>
+                  <div class="pane-info">
+                     <div class="tag-panel-header">
+                        <span class="tp-title">Tag details</span>
+                        <span class="tp-hint">Click tag to pin</span>
+                        <button type="button" id="clearAllTags" class="btn btn-light btn-sm ml-auto" disabled>Clear all</button>
+                     </div>
+                     <!-- transient hover preview -->
+                     <div id="tagPreview" aria-live="polite"></div>
+                     <!-- accumulated pinned tag sections (one per clicked tag) -->
+                     <div id="tagPinnedList"></div>
                   </div>
                </div>
+               <div class="v-resize" id="treeResize" role="separator" aria-orientation="horizontal" title="Drag to resize the tree area height"></div>
             </div>
-            <div class="col"></div>
          </div>
          <!-- Schema extra sections: full-width collapsible below the tree and info board -->
          <div class="row mt-3 mb-5">
@@ -169,7 +175,7 @@
                         </button>
                      </div>
                      <div id="extraSectionsBody" class="collapse" aria-labelledby="headingExtra">
-                        <div class="card-body">
+                        <div class="card-body extra-scroll" id="extraScroll">
                            <button class="btn btn-link btn-sm collapse-toggle collapsed d-block text-left" type="button" data-toggle="collapse" data-target="#unitClassDefinitions" aria-expanded="false" aria-controls="unitClassDefinitions">Unit classes</button>
                            <div id="unitClassDefinitions" class="list-group collapse multi-collapse"></div>
 
@@ -194,6 +200,7 @@
                            <button class="btn btn-link btn-sm collapse-toggle collapsed d-block text-left" type="button" data-toggle="collapse" data-target="#externalAnnotations" aria-expanded="false" aria-controls="externalAnnotations">External annotations</button>
                            <div id="externalAnnotations" class="list-group collapse multi-collapse"></div>
                         </div>
+                        <div class="v-resize" id="extraResize" role="separator" aria-orientation="horizontal" title="Drag to resize the extra sections height"></div>
                      </div>
                   </div>
                </div>

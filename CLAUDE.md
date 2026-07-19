@@ -10,6 +10,10 @@ Live site: https://www.hedtags.org/hed-schema-browser/
 
 Deployment: pushing to `main` publishes the site via GitHub Pages (configured in repository settings to deploy from the `main` branch root). No Actions deploy workflow exists.
 
+## Line endings (always LF)
+
+**Always write files with Unix LF (`\n`) line endings — never Windows CRLF (`\r\n`) — regardless of the OS.** This repo is developed on Windows, but `.gitattributes` sets `eol=lf`, so a file saved with CRLF produces a whole-file noisy diff. In particular, **do not write files with Python's text-mode `open(path, 'w')` on Windows** — it silently converts every `\n` to `\r\n` (this once flipped `source/schema-browser.js` to CRLF). If you must write from Python, use binary mode or `open(path, 'w', newline='\n', encoding='utf-8')`; in PowerShell, beware `Set-Content`/`Out-File` emitting CRLF. Prefer the Edit/Write tools (they write LF), keep any shell redirections LF-only, and after writing a file confirm it has no `\r` bytes (`grep -lU $'\r' <file>` prints nothing).
+
 ## Running locally
 
 Must be served over HTTP — opening the HTML directly as `file://` breaks CORS (blocks the `raw.githubusercontent.com` fetches) and XSLT loading.

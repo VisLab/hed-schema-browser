@@ -140,22 +140,9 @@ async function load(schema_name) {
     });
     $("#syn_getter").change(function() { toNode($(this).val()) });
 
-    // set lock window key press behavior
-    $( document ).keypress(function(event) {
-        if (event.which == 13) { // enter key
-            if ($("div#infoBoard").attr('editable') == 'true') {
-                $("div#infoBoard").attr('editable', 'false');
-                $("a").off( "mouseover" ); //.mouseover(function(){});
-                $("#freezeInfo").html("Press enter/return to unfreeze info board");
-            }
-            else {
-                $("div#infoBoard").attr('editable', 'true');
-                $("a").mouseover({format: useNewFormat},infoBoardMouseoverEvent);
-                $("#freezeInfo").html("Press enter/return to freeze info board");
-            }
-        }
-    })
-    
+    // Make the tree/detail split divider draggable. The old Enter-to-freeze
+    // behavior is replaced by click-to-pin in the detail panel.
+    initSplitDivider();
 }
 
 /**
@@ -750,7 +737,7 @@ function renderSchemaNode(nodeEl, level) {
     const childNodes = [...nodeEl.querySelectorAll(':scope > node')];
 
     if (childNodes.length > 0) {
-        let html = `<a href="#x${esc(name)}" tag="${esc(name)}" description="${esc(description)}" role="button" class="list-group-item level-${level}" data-toggle="collapse" aria-expanded="true" name="schemaNode">${esc(name)}</a>`;
+        let html = `<a href="#x${esc(name)}" tag="${esc(name)}" description="${esc(description)}" role="button" class="list-group-item has-children level-${level}" aria-expanded="true" tabindex="0" name="schemaNode"><span class="tw-caret" aria-hidden="true">&#9662;</span>${esc(name)}</a>`;
         html += renderAttrDivs(nodeEl, name);
         html += `<div class="list-group collapse multi-collapse level-${level} show" id="x${esc(name)}">`;
         for (const child of childNodes) {
@@ -768,7 +755,7 @@ function renderSchemaNode(nodeEl, level) {
         // its own attribute divs. This broke inLibrary detection (leaves stayed blue instead of
         // brown) and search/autocomplete for such tags - most visible in the testlib schema,
         // whose test nodes are deliberately named with digits (see GitHub issue #11).
-        let html = `<a description="${esc(description)}" role="button" class="list-group-item level-${level}" tag="${esc(name)}" name="schemaNode">${esc(name)}</a>`;
+        let html = `<a description="${esc(description)}" role="button" class="list-group-item level-${level}" tag="${esc(name)}" tabindex="0" name="schemaNode"><span class="tw-spacer" aria-hidden="true"></span>${esc(name)}</a>`;
         html += renderAttrDivs(nodeEl, name);
         return html;
     }
@@ -947,7 +934,7 @@ function renderSchemaNodeOld(nodeEl, level) {
     const attrHtml = `<div class="attribute" style="display: none">${attrParts.join(' ')}</div>`;
 
     if (childNodes.length > 0) {
-        let html = `<a href="#${esc(tagId)}" tag="${esc(tagId)}" description="${esc(description)}" role="button" class="list-group-item level-${level}" data-toggle="collapse" aria-expanded="true" name="schemaNode">${esc(name)}</a>`;
+        let html = `<a href="#${esc(tagId)}" tag="${esc(tagId)}" description="${esc(description)}" role="button" class="list-group-item has-children level-${level}" aria-expanded="true" tabindex="0" name="schemaNode"><span class="tw-caret" aria-hidden="true">&#9662;</span>${esc(name)}</a>`;
         html += attrHtml;
         html += `<div class="list-group collapse multi-collapse level-${level} show" id="${esc(tagId)}">`;
         for (const child of childNodes) {
@@ -956,7 +943,7 @@ function renderSchemaNodeOld(nodeEl, level) {
         html += '</div>';
         return html;
     } else {
-        let html = `<a description="${esc(description)}" role="button" class="list-group-item level-${level}" tag="${esc(tagId)}" name="schemaNode">${esc(name)}</a>`;
+        let html = `<a description="${esc(description)}" role="button" class="list-group-item level-${level}" tag="${esc(tagId)}" tabindex="0" name="schemaNode"><span class="tw-spacer" aria-hidden="true"></span>${esc(name)}</a>`;
         html += attrHtml;
         return html;
     }
@@ -1011,70 +998,203 @@ function displayResult(xml, useNewFormat, isDeprecated) {
         $("#hed").html(versionText);
     }
 
-    // set info board behavior
-    $("a").mouseover({format: useNewFormat}, infoBoardMouseoverEvent);
+    // Wire tree interaction: hover/focus preview, click-to-pin, caret expand.
+    bindTreeInteractions();
 
-    // set font colors: parent nodes (with data-toggle) and leaf nodes both get blue,
-    // leaf nodes get bold; inLibrary nodes are re-colored brown by parseMergedSchema().
+    // Font colors: parents and leaves get blue; leaves get bold. inLibrary nodes
+    // are re-colored brown by parseMergedSchema(). "Parent" = a tree .has-children
+    // item or (in the extra sections) a Bootstrap collapse toggle.
     $(".list-group-item:not(.inLibrary)").css('color', '#0072B2');
-    $(".list-group-item:not(.inLibrary):not([data-toggle='collapse'])").css('font-weight', 'bold');
+    $(".list-group-item:not(.inLibrary):not(.has-children):not([data-toggle='collapse'])").css('font-weight', 'bold');
 }
 
-function infoBoardMouseoverEvent(event) {
-    // jQuery callback that responds to a mouse hover action
-        var useNewFormat = event.data.format;
-        var selected = $(event.target);
-        var node = selected;
-        var path = getPath(selected);
-        var nodeName = selected.text();
-        var finalText = "";
-        // The attribute text below comes from DOM text nodes and is injected into
-        // #attribute_info via .html() further down, so every dynamic piece must be
-        // HTML-escaped here; only the static <p> wrappers are literal markup.
-        if (useNewFormat) {
-            selected.nextAll(`.attribute[name='${nodeName}']`).each(function(index) {
-                var parsed = $(this).text();
-                if (parsed.includes(",")) {
-                    var trimmed = parsed.trim().replace(/(^,)|(,$)/g, "");
-                    finalText += "<p>" + escapeHtml(trimmed) + "</p>";
-                }
-                else
-                    finalText += "<p>" + escapeHtml(parsed.trim()) + "</p>";
-            });
-        }
-        else {
-            var attrs = selected.next(".attribute").text();
-            var parsed = attrs.split(','); // attributes are written in comma separated string
-            parsed = parsed.map(x => "<p>" + escapeHtml(x.trim()) + "</p>");
-            parsed = parsed.slice(0, parsed.length - 1); // last item is empty (result of extra , at the end)
-            finalText = parsed.join("");
-        }
-            finalText = finalText == null || finalText.length == 0 ? "" : finalText;
-        var disp_div = ["schemaNode", "unitClassDef", "unitModifierDef", "valueClassDef", "attributeDef", "propertyDef", "sourceDef", "prefixDef", "externalAnnotationDef"];
-        if (disp_div.includes(selected.attr('name'))) {
-            $("h4#title").text(nodeName);
-            $("p#tag").text("Long form: " + path);
-            $("p#description").text(selected.attr("description"));
-            $("div#attribute_info").html(finalText);
-        }
-        else {
-            $("h4#title").text(node.textContent);
-            $("p#tag").text("");
-            $("p#description").text(selected.attr("description"));
-            $("div#attribute_info").html(finalText);
-        }
+
+// ---------------------------------------------------------------------------
+// Schema-tree detail panel (right pane). Hovering a tag previews it in
+// #tagPreview; clicking a tag name adds a pinned section for it to
+// #tagPinnedList, so several tags can be shown at once. Each pinned section has
+// a remove (×) control, and "Clear all" empties the list.
+// ---------------------------------------------------------------------------
+var pinCounter = 0;   // unique id per pinned section (handles duplicate tag names)
+
+/** Text of a tree <a> excluding its caret/spacer span (i.e. the tag name). */
+function nodeLabel($a) {
+    return $a.clone().children().remove().end().text().trim();
 }
+
 /**
- *  Get full path of tag node
- *  @param node     a tag node
+ * Inner detail HTML for a tree tag <a>: name, description, attributes, then
+ * Long form (path) and hedId at the bottom. hedId is pulled out of the
+ * attribute list so it can sit at the bottom.
+ */
+function tagDetailHtml($a) {
+    var name = nodeLabel($a);
+    var nodeName = $a.attr('tag');
+    var description = $a.attr('description') || '';
+    var path = getPath($a);
+
+    var attrLines = [], hedId = '';
+    $a.nextAll(".attribute[name='" + nodeName + "']").each(function () {
+        var text = $(this).text().trim().replace(/,\s*$/, '');
+        var m = text.match(/^\s*hedId\s*:\s*(.+)$/i);
+        if (m) { hedId = m[1].trim(); }
+        else if (text) { attrLines.push(text); }
+    });
+
+    var html = '<div class="i-name">' + escapeHtml(name) + '</div>';
+    if (description) html += '<div class="i-desc">' + escapeHtml(description) + '</div>';
+    if (attrLines.length) {
+        html += '<div class="i-attr">' + attrLines.map(function (a) {
+            var i = a.indexOf(':');
+            return '<div>' + (i >= 0
+                ? '<span class="lbl">' + escapeHtml(a.slice(0, i).trim()) + ':</span> ' + escapeHtml(a.slice(i + 1).trim())
+                : escapeHtml(a)) + '</div>';
+        }).join('') + '</div>';
+    }
+    html += '<div class="i-bottom"><div><span class="lbl">Long form:</span> ' + escapeHtml(path) + '</div>';
+    if (hedId) html += '<div><span class="lbl">hedId:</span> ' + escapeHtml(hedId) + '</div>';
+    html += '</div>';
+    return html;
+}
+
+/** Show a tag in the transient preview slot (does not touch the pinned list). */
+function previewTag($a) {
+    $("#schema .list-group-item").removeClass('previewing');
+    $a.addClass('previewing');
+    if ($a.hasClass('pinned')) {
+        $("#tagPreview").empty();   // already in the pinned list; don't preview a copy
+    } else {
+        $("#tagPreview").html('<div class="tag-section preview">' + tagDetailHtml($a) + '</div>');
+    }
+}
+
+/** Add — or, if already pinned, remove — a pinned detail section for a tag. */
+function togglePinnedTag($a) {
+    if ($a.hasClass('pinned')) {
+        removePinned($a.attr('data-pinid'));
+        previewTag($a);
+        return;
+    }
+    var id = ++pinCounter;
+    $a.addClass('pinned').attr('data-pinid', id);
+    $('<div class="tag-section pinned"></div>')
+        .attr('data-pinid', id)
+        .html('<button type="button" class="unpin-x" title="Remove">&times;</button>' + tagDetailHtml($a))
+        .appendTo("#tagPinnedList");
+    updateClearAllState();
+    previewTag($a);   // refresh the preview note to "already pinned below"
+}
+
+/** Remove the pinned section (and untag the tree) for a given pin id. */
+function removePinned(pid) {
+    $("#tagPinnedList .tag-section[data-pinid='" + pid + "']").remove();
+    $("#schema .list-group-item[data-pinid='" + pid + "']").removeClass('pinned').removeAttr('data-pinid');
+    updateClearAllState();
+}
+
+function clearAllPinned() {
+    $("#tagPinnedList").empty();
+    $("#schema .list-group-item.pinned").removeClass('pinned').removeAttr('data-pinid');
+    updateClearAllState();
+}
+
+function updateClearAllState() {
+    $("#clearAllTags").prop('disabled', $("#tagPinnedList .tag-section").length === 0);
+}
+
+/** Sync each parent caret glyph to whether its children container is shown. */
+function syncCarets() {
+    $("#schema .list-group-item.has-children").each(function () {
+        // The <a> is followed by hidden .attribute divs, then the children
+        // container, so use nextAll(...).first() rather than next().
+        var $target = $(this).nextAll(".list-group.collapse").first();
+        $(this).children('.tw-caret').html($target.hasClass('show') ? '▾' : '▸');
+    });
+}
+
+/** (Re)bind hover/focus preview, click-to-pin (accumulate), and caret expand. */
+function bindTreeInteractions() {
+    $("#tagPreview").empty();
+    $("#tagPinnedList").empty();
+    updateClearAllState();
+    $("#schema")
+        .off('.tree')
+        .on('mouseenter.tree', '.list-group-item', function (e) { e.stopPropagation(); previewTag($(this)); })
+        .on('focus.tree', '.list-group-item', function () { previewTag($(this)); })
+        .on('click.tree', '.list-group-item', function (e) {
+            if ($(e.target).is('.tw-caret')) {                 // caret => expand/collapse only
+                e.preventDefault(); e.stopPropagation();
+                $(this).nextAll(".list-group.collapse").first().toggleClass('show');
+                syncCarets();
+            } else {                                           // name => add/remove a pinned section
+                e.preventDefault();
+                togglePinnedTag($(this));
+            }
+        });
+    // Remove one pinned section via its × button.
+    $("#tagPinnedList").off('.tree').on('click.tree', '.unpin-x', function (e) {
+        e.stopPropagation();
+        removePinned($(this).closest('.tag-section').attr('data-pinid'));
+    });
+    // "Clear all" empties the pinned list.
+    $("#clearAllTags").off('.tree').on('click.tree', clearAllPinned);
+}
+
+/**
+ * A horizontal drag handle that resizes a target element's height. Dragging up
+ * shrinks it, down grows it; the target keeps overflow:auto so it scrolls.
+ */
+function makeVerticalResizer(target, handle, minH) {
+    if (!target || !handle || handle.dataset.bound) return;
+    handle.dataset.bound = '1';
+    var dragging = false;
+    handle.addEventListener('mousedown', function (e) { dragging = true; e.preventDefault(); document.body.style.cursor = 'row-resize'; });
+    document.addEventListener('mousemove', function (e) {
+        if (!dragging) return;
+        var top = target.getBoundingClientRect().top;
+        target.style.height = Math.max(minH, e.clientY - top) + 'px';
+    });
+    document.addEventListener('mouseup', function () { dragging = false; document.body.style.cursor = ''; });
+}
+
+/**
+ * Wire the resize handles. Runs once. The vertical divider rebalances the tree
+ * and detail panes; the two horizontal handles resize the tree area and the
+ * extra-sections area heights (each pane keeps its own scrollbar).
+ */
+function initSplitDivider() {
+    var split = document.getElementById('treeSplit'),
+        div = document.getElementById('treeDivider'),
+        tree = split ? split.querySelector('.pane-tree') : null;
+    if (split && div && tree && !div.dataset.bound) {
+        div.dataset.bound = '1';
+        var dragging = false;
+        div.addEventListener('mousedown', function (e) { dragging = true; e.preventDefault(); document.body.style.cursor = 'col-resize'; });
+        document.addEventListener('mousemove', function (e) {
+            if (!dragging) return;
+            var r = split.getBoundingClientRect(), w = e.clientX - r.left;
+            w = Math.max(140, Math.min(w, r.width - 140));
+            tree.style.flex = '0 0 ' + w + 'px';
+        });
+        document.addEventListener('mouseup', function () { dragging = false; document.body.style.cursor = ''; });
+    }
+    // Height resizers for the tree area and the extra-sections body.
+    makeVerticalResizer(document.getElementById('treeSplit'), document.getElementById('treeResize'), 200);
+    makeVerticalResizer(document.getElementById('extraScroll'), document.getElementById('extraResize'), 120);
+}
+
+/**
+ *  Get full path of a tag node, e.g. "Event/Sensory-event". Uses nodeLabel so
+ *  the caret/spacer span doesn't leak into the path text.
  */
 function getPath(node) {
-    var path = node.text();
+    var path = nodeLabel(node);
     node = node.parent();
     while (node != null) {
         var aNode = node.prevAll("a.list-group-item:first");
-        if (aNode.text()) {
-            path = aNode.text() + "/" + path;
+        var label = nodeLabel(aNode);
+        if (label) {
+            path = label + "/" + path;
             node = node.parent();
         }
         else
@@ -1116,6 +1236,7 @@ function toLevel(level) {
     $("#schema").attr("status","show");
     $("#toLevel").val(level).attr("title", "Enter the depth level to expand to (max " + currentMaxDepth + ")");
     syncExpandCollapseBtn(level);
+    syncCarets();   // keep parent caret glyphs in sync with the .show state
 }
 function expandLevelInputChanged(value) {
     toLevel(value);
@@ -1154,17 +1275,15 @@ function capitalizeFirstLetter(string) {
   return string.charAt(0).toUpperCase() + string.slice(1);
 }
 function toNode(nodeName) {
-    let node = $("a[tag='"+nodeName+"'");
+    let node = $("#schema a[tag='"+nodeName+"']").first();
+    if (!node.length) return;
     let attrs = node.attr("class");
     const levelString = attrs.match(/level-\d?/g)[0];
     const levelNum = levelString.split('-')[1];
     toLevel(levelNum);
-    $("html").animate(
-      {
-        scrollTop: node.offset().top
-      },
-      500 //speed
-    );
+    // The tree scrolls inside .pane-tree, so scroll that pane (not the window).
+    node[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+    previewTag(node);   // show the found tag's details in the preview slot
     node.effect("highlight", {}, 3000);
 }
 function getSchemaNodes() {
@@ -1418,10 +1537,9 @@ function parseMergedSchema() {
         }
     });
    
-    // make inLibrary tag a different color
-    $(".inLibrary[data-toggle='collapse']").css('color', '#a0522d');
-    $(".inLibrary:not([data-toggle='collapse'])").css('color', '#a0522d');
-    $(".inLibrary:not([data-toggle='collapse'])").css('font-weight', 'bold');
+    // make inLibrary tag a different color (parents = .has-children, leaves get bold)
+    $(".inLibrary").css('color', '#a0522d');
+    $(".inLibrary:not(.has-children)").css('font-weight', 'bold');
 
 }
 
