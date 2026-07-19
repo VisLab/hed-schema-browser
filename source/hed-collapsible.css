@@ -96,6 +96,17 @@ a.list-group-item:last-of-type + div.attribute + div::after {
 /* The extra-sections body scrolls within its own (resizable) height. */
 .extra-scroll { height: 300px; overflow: auto; }
 
+/* Inline description / attribute display for extra-section items, hidden until
+   the "Show descriptions" / "Show attributes" toggles add the class to the
+   container. The description sits on the same line as the item name; attributes
+   go on their own full-width line below it. */
+.ex-desc { display: none; color: #666; font-weight: normal; font-size: 0.8125rem; }
+.ex-attrs { display: none; font-size: 0.8125rem; padding: 1px 0 3px 22px; }
+.ex-attrs .lbl { color: #a0522d; }
+.ex-attrs .ex-a { display: inline-block; margin-right: 16px; white-space: nowrap; }
+#schemaDefinitions.show-ex-desc .ex-desc { display: inline; }
+#schemaDefinitions.show-ex-attrs .ex-attrs { display: block; }
+
 /* tree rows don't wrap, so the pane's horizontal scrollbar reveals long/deep rows */
 #schema .list-group-item { white-space: nowrap; }
 #schema .list-group-item.previewing { background: #eef4f8; }

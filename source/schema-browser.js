@@ -889,6 +889,49 @@ function renderExternalAnnotations(defsEl) {
 }
 
 /**
+ * For each extra-section item, insert hidden inline description / attribute lines
+ * right below the item name. They span the full width and are revealed by the
+ * "Show descriptions" / "Show attributes" toggles (which add show-ex-desc /
+ * show-ex-attrs to #schemaDefinitions). Re-run after each schema load.
+ */
+function buildExtraInlineInfo() {
+    $("#schemaDefinitions .list-group-item").each(function () {
+        var $item = $(this);
+        var desc = $item.attr('description') || '';
+        // Attribute divs follow the item, up to the next item <a> or a children
+        // .list-group (for unit classes with nested units).
+        var attrs = [];
+        $item.nextUntil("a, .list-group", ".attribute").each(function () {
+            var text = $(this).text().trim().replace(/,\s*$/, '');
+            if (text) { attrs.push(text); }
+        });
+        // Description goes inline on the item's own line, right after the name.
+        if (desc) { $item.append(' <span class="ex-desc">— ' + escapeHtml(desc) + '</span>'); }
+        // Attributes go on their own full-width line below the item.
+        if (attrs.length) {
+            $item.after('<div class="ex-attrs">' + attrs.map(function (a) {
+                var i = a.indexOf(':');
+                return '<span class="ex-a">' + (i >= 0
+                    ? '<span class="lbl">' + escapeHtml(a.slice(0, i).trim()) + ':</span> ' + escapeHtml(a.slice(i + 1).trim())
+                    : escapeHtml(a)) + '</span>';
+            }).join('') + '</div>');
+        }
+    });
+}
+
+/** Wire the "Show/Hide descriptions" and "Show/Hide attributes" toggles. */
+function bindExtraToggles() {
+    $("#toggleExtraDesc").off('click.ex').on('click.ex', function () {
+        var on = $("#schemaDefinitions").toggleClass('show-ex-desc').hasClass('show-ex-desc');
+        $(this).text(on ? 'Hide descriptions' : 'Show descriptions').toggleClass('active', on);
+    });
+    $("#toggleExtraAttrs").off('click.ex').on('click.ex', function () {
+        var on = $("#schemaDefinitions").toggleClass('show-ex-attrs').hasClass('show-ex-attrs');
+        $(this).text(on ? 'Hide attributes' : 'Show attributes').toggleClass('active', on);
+    });
+}
+
+/**
  * Transform a new-format HED XML document (schema >= 8.x) into section HTML strings.
  * Replicates the output of hed-schema.xsl.
  */
@@ -986,6 +1029,8 @@ function displayResult(xml, useNewFormat, isDeprecated) {
         $("#schemaSources").html(result.schemaSources);
         $("#schemaPrefixes").html(result.schemaPrefixes);
         $("#externalAnnotations").html(result.externalAnnotations);
+        buildExtraInlineInfo();   // inline description/attribute lines (hidden until toggled)
+        bindExtraToggles();
         var versionText = "HED Schema: " + result.version;
         versionText = isDeprecated ? versionText + " (deprecated)" : versionText;
         $("#hed").html(versionText);
