@@ -73,26 +73,72 @@ a.list-group-item:last-of-type + div.attribute + div::after {
     overflow: hidden;
 }
 
-#infoBoard {
-    /*z-index: -1;*/
-    position: sticky;
-    top: 50px;
-    padding: 15px;
+/* ---- Schema-tree split: tree (left) + pinned detail panel (right) ---- */
+.tree-split {
+    display: flex;
+    align-items: stretch;
+    height: 65vh;
+    min-height: 340px;
+    border: 1px solid #cfd8e0;
+    border-radius: 6px;
+    overflow: hidden;
 }
+.pane-tree { flex: 0 0 50%; overflow: auto; padding: 10px 8px 14px 16px; }
+.pane-tree #schema { overflow: visible; margin-bottom: 0; }   /* let the pane scroll horizontally */
+.tree-divider { flex: 0 0 7px; background: #e2e7ec; cursor: col-resize; }
+.tree-divider:hover { background: #c7d0d8; }
+.pane-info { flex: 1 1 0; overflow: auto; padding: 14px 16px; background: #fbfcfd; border-left: 1px solid #eee; }
+
+/* Horizontal drag handle to resize an area's height (tree area / extra sections). */
+.v-resize { height: 9px; margin: 4px 0; background: #e2e7ec; border-radius: 3px; cursor: row-resize; }
+.v-resize:hover { background: #c7d0d8; }
+
+/* The extra-sections body scrolls within its own (resizable) height. */
+.extra-scroll { height: 300px; overflow: auto; }
+
+/* tree rows don't wrap, so the pane's horizontal scrollbar reveals long/deep rows */
+#schema .list-group-item { white-space: nowrap; }
+#schema .list-group-item.previewing { background: #eef4f8; }
+#schema .list-group-item.pinned { background: #d3e6f5; box-shadow: inset 3px 0 0 #2c3e50; }
+#schema .list-group-item:focus { outline: 2px solid #7fb2d9; outline-offset: -2px; }
+
+/* expand caret (parent tags) + spacer (leaf tags, for alignment) */
+.tw-caret { display: inline-block; width: 18px; font-size: 17px; line-height: 1; color: #888; cursor: pointer; text-align: center; }
+.tw-caret:hover { color: #2c3e50; }
+.tw-spacer { display: inline-block; width: 18px; }
+
+/* detail panel: sticky "Tag details" header + Clear all, a transient hover
+   preview, then a list of pinned sections (one per clicked tag). */
+.tag-panel-header {
+    display: flex; align-items: center;
+    position: sticky; top: 0; z-index: 1; background: #fbfcfd;
+    padding: 0 0 8px; margin-bottom: 8px; border-bottom: 1px solid #dfe4ea;
+}
+.tp-title { font-weight: bold; color: #2c3e50; font-size: 15px; }
+.tp-hint { font-size: 12px; color: #999; font-style: italic; margin-left: 10px; }
+
+/* one tag's details: name, description, attributes, then Long form + hedId */
+.pane-info .i-name { font-weight: bold; color: #0072B2; font-size: 16px; }
+.pane-info .i-desc { font-size: 14px; margin: 6px 0 10px; }
+.pane-info .i-attr { font-size: 14px; }
+.pane-info .i-attr .lbl, .pane-info .i-bottom .lbl { color: #a0522d; }
+.pane-info .i-bottom { font-size: 14px; margin-top: 12px; padding-top: 8px; border-top: 1px solid #e6e6e6; }
+.pane-info .pin-note { font-size: 12px; color: #888; font-style: italic; }
+
+.tag-section { padding: 6px 0; }
+.tag-section.preview { background: #f4f8fb; border: 1px dashed #cfd8e0; border-radius: 4px; padding: 8px 10px; margin-bottom: 10px; }
+.preview-note { font-size: 12px; color: #888; padding: 4px 0 8px; }
+.tag-section.pinned { position: relative; padding-right: 22px; }
+.tag-section.pinned + .tag-section.pinned { border-top: 1px solid #e6e6e6; margin-top: 6px; }
+.unpin-x { position: absolute; right: 0; top: 4px; border: none; background: none; color: #999; font-size: 20px; line-height: 1; cursor: pointer; padding: 0 4px; }
+.unpin-x:hover { color: #c0392b; }
 
 /* Keep secondary "chrome" text at the compact 14px size the buttons use:
-   the schema/version dropdown menus, the Schema-information description, and
-   the hover detail ("side car") card. The main schema tree keeps its own size. */
+   the schema/version dropdown menus and the Schema-information description. */
 #schemaDropdown a,
 #schemaVersionDropdown a,
-#schemaDesc .card-body,
-#infoBoard {
+#schemaDesc .card-body {
     font-size: 0.875rem;
-}
-
-#infoBoard #title {
-    font-size: 0.875rem;
-    font-weight: bold;
 }
 
 /* Slightly smaller schema-version title (was the full h1 size). */
