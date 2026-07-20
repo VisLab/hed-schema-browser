@@ -97,7 +97,10 @@ async function load(schema_name) {
 
     // Best-effort initial button text (real value set once loadSchema completes)
     var initialDisplayName = isPrereleaseMode ? baseSchemaName + ' (prerelease)' : baseSchemaName;
-    $('#dropdownSchemaButton').text('Schema: ' + initialDisplayName);
+    $('#dropdownSchemaButton').text(initialDisplayName);
+
+    // Wire the help dialog (loads help.json on first open).
+    bindHelp();
 
     // Load the initial schema.
     // ?version= only makes sense for releases; ignore it in prerelease mode.
@@ -214,6 +217,17 @@ function versionLabelFromFile(file) {
 }
 
 /**
+ * Display-only version label for the Version dropdown (menu items + button):
+ * the semantic-version portion with any leading "<library>_" prefix removed,
+ * e.g. "testlib_3.0.0" -> "3.0.0", "lang_1.1.0" -> "1.1.0", "8.4.0" -> "8.4.0".
+ * The full "<library>_<version>" form is unchanged everywhere else (version
+ * sorting/comparison and the "HED Schema: testlib_3.0.0" title).
+ */
+function versionNumberOnly(version) {
+    return String(version).replace(/^.*_/, '');
+}
+
+/**
  * Get schema versions for a schema from the cached manifest.
  * Returns an object with parallel version / download_link / isDeprecated
  * arrays — the same shape this code previously built from the GitHub REST API,
@@ -293,7 +307,7 @@ function buildSchemaVersionDropdown(schema_name) {
             }
             (function (name, version, downloadLink) {
                 $('<a class="dropdown-item" href="#"></a>')
-                    .text(version)
+                    .text(versionNumberOnly(version))
                     .on('click', function (e) { e.preventDefault(); loadSchema(name, downloadLink); })
                     .appendTo('#schemaVersionDropdown');
             })(schema_name, githubSchema["version"][idx], githubSchema["download_link"][idx]);
@@ -578,8 +592,8 @@ function setDropdownBtnText(schema_name, version) {
         var nameWithoutPrerelease = schema_name.replace('_prerelease', '');
         displaySchemaName = nameWithoutPrerelease + ' (prerelease)';
     }
-    $('#dropdownSchemaButton').text('Schema: ' + displaySchemaName);
-    $('#dropdownSchemaVersionButton').text('Version: ' + version);
+    $('#dropdownSchemaButton').text(displaySchemaName);
+    $('#dropdownSchemaVersionButton').text(versionNumberOnly(version));
 }
 
 /**
@@ -943,6 +957,72 @@ function bindExtraToggles() {
         $("#schemaDefinitions").toggleClass('show-ex-attrs');
         syncExtraToggle($(this), 'show-ex-attrs', 'attributes');
     });
+}
+
+// Guard so help.json is fetched only once, no matter how often the dialog opens.
+var helpLoaded = false;
+
+/**
+ * Wire the "?" help button's dialog. The help text lives in help.json (repo
+ * root) so it can be edited without changing any code; it is fetched the first
+ * time the dialog is opened and rendered into #helpModalBody.
+ */
+function bindHelp() {
+    $('#helpModal').off('show.bs.modal.help').on('show.bs.modal.help', loadHelp);
+}
+
+/** Fetch help.json (once) and render it into the help dialog. */
+function loadHelp() {
+    if (helpLoaded) {
+        return;
+    }
+    helpLoaded = true;
+    fetch('help.json')
+        .then(function (r) {
+            if (!r.ok) {
+                throw new Error('HTTP ' + r.status);
+            }
+            return r.json();
+        })
+        .then(renderHelp)
+        .catch(function (err) {
+            helpLoaded = false;   // allow a retry on the next open
+            $('#helpModalBody').html(
+                '<div class="text-danger">Could not load help ('
+                + escapeHtml(String(err && err.message ? err.message : err)) + ').</div>');
+        });
+}
+
+/** Render the parsed help.json object into the dialog title + body. */
+function renderHelp(help) {
+    if (help.title) {
+        $('#helpModalTitle').text(help.title);
+    }
+    var html = '';
+    if (help.intro) {
+        html += '<p>' + escapeHtml(help.intro) + '</p>';
+    }
+    (help.sections || []).forEach(function (section) {
+        html += '<h6 class="mt-3 font-weight-bold">' + escapeHtml(section.heading || '') + '</h6>';
+        if (Array.isArray(section.items)) {
+            html += '<ul>';
+            section.items.forEach(function (item) {
+                html += '<li>' + escapeHtml(item) + '</li>';
+            });
+            html += '</ul>';
+        } else if (section.body) {
+            html += '<p>' + escapeHtml(section.body) + '</p>';
+        }
+    });
+    if (Array.isArray(help.links) && help.links.length) {
+        html += '<h6 class="mt-3 font-weight-bold">Links</h6><ul>';
+        help.links.forEach(function (link) {
+            html += '<li><a href="' + escapeHtml(link.url) + '" target="_blank" rel="noopener">'
+                + escapeHtml(link.label || link.url) + '</a></li>';
+        });
+        html += '</ul>';
+    }
+    $('#helpModalBody').html(html);
 }
 
 /**

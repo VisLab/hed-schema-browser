@@ -1,0 +1,50 @@
+{
+  "title": "HED Schema Browser help",
+  "intro": "HED (Hierarchical Event Descriptors) is a framework for annotating time-series data such as experimental events using a standardized vocabulary (a HED schema). This tool lets you browse the HED standard and library schemas. All schema data is read live from the GitHub hed-standard/hed-schemas repository, so it always reflects the published schemas.",
+  "sections": [
+    {
+      "heading": "Choosing a schema",
+      "items": [
+        "Use the first dropdown to select the standard schema or a library schema (for example score, lang, or testlib).",
+        "Use the Version dropdown to pick a released version. Turn on 'Show deprecated' to also list older, deprecated versions.",
+        "'Show prerelease' switches to the in-development (prerelease) version of the selected schema, when one exists. 'Show deprecated' is not available while viewing a prerelease.",
+        "'Show library only' hides the inherited standard-schema tags so you see only the tags a library adds."
+      ]
+    },
+    {
+      "heading": "Browsing the tag tree",
+      "items": [
+        "The left panel shows the schema as a collapsible tree of tags.",
+        "Click the caret before a parent tag to show or hide its children: a right-pointing caret means collapsed, a down-pointing caret means expanded. From the keyboard, focus a tag and press the Right or Left arrow.",
+        "'Expand all' opens the entire tree; 'Expand to level' opens the tree to a chosen depth.",
+        "Type in the 'Search term' box to jump to a matching tag. Turn on 'Search deprecated tags' to include deprecated tags in the search."
+      ]
+    },
+    {
+      "heading": "Viewing tag details",
+      "items": [
+        "Hover a tag to preview its description, attributes, long-form path, and hedId in the 'Tag details' panel on the right.",
+        "Click a tag name to pin its details in the panel. You can pin several tags at once to compare them side by side.",
+        "Remove one pinned tag with its close (x) button, or remove them all with 'Clear all'."
+      ]
+    },
+    {
+      "heading": "Schema extra sections",
+      "items": [
+        "Below the tree, 'Schema extra sections' lists the schema's unit classes, unit modifiers, value classes, schema attributes, properties, sources, prefixes, and external annotations.",
+        "Use 'Show descriptions' to reveal each entry's description inline, and 'Show attributes' to reveal its attributes."
+      ]
+    },
+    {
+      "heading": "Adjusting the layout",
+      "items": [
+        "Drag the vertical divider between the tree and the details panel to change how much width each one gets.",
+        "Drag the horizontal bar below the tree, or below the extra sections, to change how tall those areas are. Each area has its own scrollbar."
+      ]
+    }
+  ],
+  "links": [
+    { "label": "HED resources and tutorials", "url": "https://www.hedtags.org/hed-resources" },
+    { "label": "HED schemas repository (source of all schema data)", "url": "https://github.com/hed-standard/hed-schemas" }
+  ]
+}
