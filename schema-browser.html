@@ -56,6 +56,8 @@
             <div class="col">
                <div class="d-flex flex-wrap align-items-center pt-2 px-3 rounded" style="background-color: #2c3e50;" role="toolbar" aria-label="Schema controls">
 
+                  <span class="toolbar-label text-white mr-3 mb-2">Select HED schema:</span>
+
                   <!-- Cluster: schema + version selection -->
                   <div class="d-flex flex-nowrap align-items-center mr-4 mb-2">
                      <div class="dropdown mr-2">
@@ -80,9 +82,18 @@
                      <button class="btn btn-light btn-sm mr-2" type="button" id="prereleaseToggle" onclick="handlePrereleaseToggle()">
                         <span id="prereleaseText">Show prerelease</span>
                      </button>
-                     <button class="btn btn-light btn-sm" type="button" id="deprecatedToggle" onclick="handleDeprecatedToggle()">
+                     <button class="btn btn-light btn-sm mr-2" type="button" id="deprecatedToggle" onclick="handleDeprecatedToggle()">
                         <span id="deprecatedText">Show deprecated</span>
                      </button>
+                     <button class="btn btn-light btn-sm font-weight-bold" type="button" id="helpBtn"
+                             data-toggle="modal" data-target="#helpModal"
+                             title="Help — how to use this browser" aria-label="Help">?</button>
+                     <a class="btn btn-light btn-sm ml-2 d-inline-flex align-items-center" id="githubBtn"
+                        href="https://github.com/hed-standard/hed-schemas"
+                        target="_blank" rel="noopener"
+                        title="Open the hed-schemas repository on GitHub" aria-label="hed-schemas repository on GitHub">
+                        <img src="github-mark.svg" alt="" width="16" height="16">
+                     </a>
                   </div>
 
                </div>
@@ -217,6 +228,24 @@
          >Scroll to top
       <span aria-hidden="true">&#8593;</span>
       </button>
+
+      <!-- Help dialog. Content is loaded from help.json (repo root) on first open,
+           so the help text can be edited without touching the HTML. -->
+      <div class="modal fade" id="helpModal" tabindex="-1" role="dialog" aria-labelledby="helpModalTitle" aria-hidden="true">
+         <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
+            <div class="modal-content">
+               <div class="modal-header">
+                  <h5 class="modal-title" id="helpModalTitle">Help</h5>
+                  <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                     <span aria-hidden="true">&times;</span>
+                  </button>
+               </div>
+               <div class="modal-body" id="helpModalBody">
+                  <em>Loading help&hellip;</em>
+               </div>
+            </div>
+         </div>
+      </div>
       <script src="vendor/popper-1.16.0.min.js"></script>
       <script src="vendor/bootstrap-4.4.1.min.js"></script>
       <script>
